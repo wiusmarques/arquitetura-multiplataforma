@@ -23,4 +23,9 @@ Route::middleware('admin')->group(function () {
     Route::get('/editais/{id}/propostas', [EditalController::class, 'propostas']);
     Route::post('/editais/{id}/publicar', [EditalController::class, 'publicar']);
     Route::post('/editais/{id}/excluir', [EditalController::class, 'excluir']);
+    Route::post('/editais/{id}/resultado', [EditalController::class, 'publicarResultado']);
+
+    // Distribuição das avaliações (dados no avaliacao-service, via REST).
+    Route::get('/editais/{id}/avaliacao', [\App\Http\Controllers\AvaliacaoController::class, 'painel']);
+    Route::post('/tarefas/{tarefaId}/avaliador', [\App\Http\Controllers\AvaliacaoController::class, 'atribuirAvaliador']);
 });

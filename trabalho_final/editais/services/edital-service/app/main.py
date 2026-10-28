@@ -47,12 +47,19 @@ CREATE TABLE IF NOT EXISTS editais (
     resultado       jsonb,
     atualizado_em   timestamptz NOT NULL DEFAULT now()
 );
+-- Controle de idempotência: Kafka entrega "ao menos uma vez", então cada
+-- proposta é registrada aqui e os contadores só mudam na PRIMEIRA vez que
+-- cada evento daquela proposta é visto.
+CREATE TABLE IF NOT EXISTS propostas_vistas (
+    proposta_id uuid PRIMARY KEY,
+    edital_id   uuid NOT NULL,
+    resultado   text
+);
 CREATE TABLE IF NOT EXISTS transparencia (
     edital_id           uuid PRIMARY KEY,
     propostas_recebidas integer NOT NULL DEFAULT 0,
     propostas_aprovadas integer NOT NULL DEFAULT 0,
     propostas_reprovadas integer NOT NULL DEFAULT 0,
-    valor_aprovado      numeric(14,2) NOT NULL DEFAULT 0,
     atualizado_em       timestamptz NOT NULL DEFAULT now()
 );
 """
@@ -61,6 +68,31 @@ CREATE TABLE IF NOT EXISTS transparencia (
 def _data(valor: str | None) -> date | None:
     """Datas chegam como string ISO no evento; o asyncpg exige datetime.date."""
     return date.fromisoformat(valor) if valor else None
+
+
+async def _registrar_proposta(conn, proposta_id: str, edital_id: str) -> None:
+    """Conta a proposta como recebida UMA vez, chegue ela pela submissão ou
+    (fora de ordem) pela própria avaliação."""
+    inedita = await conn.fetchrow(
+        """
+        INSERT INTO propostas_vistas (proposta_id, edital_id)
+        VALUES ($1, $2) ON CONFLICT (proposta_id) DO NOTHING
+        RETURNING proposta_id
+        """,
+        proposta_id, edital_id,
+    )
+    if inedita is None:
+        return
+    await conn.execute(
+        """
+        INSERT INTO transparencia (edital_id, propostas_recebidas)
+        VALUES ($1, 1)
+        ON CONFLICT (edital_id) DO UPDATE SET
+            propostas_recebidas = transparencia.propostas_recebidas + 1,
+            atualizado_em = now()
+        """,
+        edital_id,
+    )
 
 
 async def aplicar_evento(pool: asyncpg.Pool, topico: str, evento: dict) -> None:
@@ -80,7 +112,9 @@ async def aplicar_evento(pool: asyncpg.Pool, topico: str, evento: dict) -> None:
                     nota_maxima = EXCLUDED.nota_maxima,
                     data_abertura = EXCLUDED.data_abertura,
                     data_encerramento = EXCLUDED.data_encerramento,
-                    status = 'publicado', atualizado_em = now()
+                    status = CASE WHEN editais.status = 'resultado_publicado'
+                                  THEN editais.status ELSE 'publicado' END,
+                    atualizado_em = now()
                 """,
                 evento["edital_id"], evento["titulo"], evento.get("descricao", ""),
                 evento["valor_total"], evento.get("valor_por_candidato"),
@@ -94,35 +128,38 @@ async def aplicar_evento(pool: asyncpg.Pool, topico: str, evento: dict) -> None:
         elif topico == "resultado.publicado":
             await conn.execute(
                 """
-                UPDATE editais SET status = 'resultado_publicado',
-                       resultado = $2::jsonb, atualizado_em = now()
-                WHERE id = $1
+                INSERT INTO editais (id, titulo, valor_total, status, resultado)
+                VALUES ($1, '', 0, 'resultado_publicado', $2::jsonb)
+                ON CONFLICT (id) DO UPDATE SET
+                    status = 'resultado_publicado',
+                    resultado = EXCLUDED.resultado, atualizado_em = now()
                 """,
                 evento["edital_id"], json.dumps(evento.get("resumo", {})),
             )
         elif topico == "proposta.submetida":
-            await conn.execute(
-                """
-                INSERT INTO transparencia (edital_id, propostas_recebidas)
-                VALUES ($1, 1)
-                ON CONFLICT (edital_id) DO UPDATE SET
-                    propostas_recebidas = transparencia.propostas_recebidas + 1,
-                    atualizado_em = now()
-                """,
-                evento["edital_id"],
-            )
+            await _registrar_proposta(conn, evento["proposta_id"], evento["edital_id"])
         elif topico == "proposta.avaliada":
             # Proposta não tem valor próprio: aprovado recebe o
             # valor_por_candidato do edital.
             aprovada = evento.get("resultado") == "aprovada"
+            await _registrar_proposta(conn, evento["proposta_id"], evento["edital_id"])
+            primeira = await conn.fetchrow(
+                """
+                INSERT INTO propostas_vistas (proposta_id, edital_id, resultado)
+                VALUES ($1, $2, $3)
+                ON CONFLICT (proposta_id) DO UPDATE SET resultado = EXCLUDED.resultado
+                WHERE propostas_vistas.resultado IS NULL
+                RETURNING proposta_id
+                """,
+                evento["proposta_id"], evento["edital_id"], evento.get("resultado"),
+            )
+            if primeira is None:
+                return  # proposta já avaliada antes — não conta de novo
             await conn.execute(
                 """
                 UPDATE transparencia SET
                     propostas_aprovadas = propostas_aprovadas + $2,
                     propostas_reprovadas = propostas_reprovadas + $3,
-                    valor_aprovado = valor_aprovado + CASE WHEN $2 = 1 THEN
-                        COALESCE((SELECT valor_por_candidato FROM editais WHERE id = $1), 0)
-                        ELSE 0 END,
                     atualizado_em = now()
                 WHERE edital_id = $1
                 """,
@@ -204,7 +241,8 @@ async def transparencia_recursos():
         """
         SELECT e.id AS edital_id, e.titulo, e.status, e.valor_total,
                t.propostas_recebidas, t.propostas_aprovadas, t.propostas_reprovadas,
-               t.valor_aprovado, t.atualizado_em
+               t.propostas_aprovadas * COALESCE(e.valor_por_candidato, 0) AS valor_aprovado,
+               t.atualizado_em
         FROM editais e JOIN transparencia t ON t.edital_id = e.id
         ORDER BY e.titulo
         """
@@ -218,7 +256,8 @@ async def prestacao_contas(edital_id: str):
         """
         SELECT e.id AS edital_id, e.titulo, e.status, e.valor_total, e.resultado,
                t.propostas_recebidas, t.propostas_aprovadas, t.propostas_reprovadas,
-               t.valor_aprovado, t.atualizado_em
+               t.propostas_aprovadas * COALESCE(e.valor_por_candidato, 0) AS valor_aprovado,
+               t.atualizado_em
         FROM editais e JOIN transparencia t ON t.edital_id = e.id
         WHERE e.id = $1::uuid
         """,

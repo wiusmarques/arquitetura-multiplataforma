@@ -155,11 +155,11 @@ class EditalController extends Controller
      * (REST síncrono, admin -> avaliação) e o evento resultado.publicado sai
      * pela outbox para o read model e as notificações.
      */
-    public function publicarResultado(string $id): JsonResponse
+    public function publicarResultado(Request $request, string $id): JsonResponse|RedirectResponse
     {
         $edital = Edital::findOrFail($id);
         if ($edital->status !== 'publicado') {
-            return response()->json(['erro' => "Edital precisa estar 'publicado' (está '{$edital->status}')"], 409);
+            return $this->respostaResultado($request, "Edital precisa estar 'publicado' (está '{$edital->status}')");
         }
 
         $tarefas = Http::timeout(5)
@@ -169,17 +169,18 @@ class EditalController extends Controller
 
         $pendentes = array_filter($tarefas, fn ($t) => $t['status'] !== 'concluida');
         if ($pendentes !== []) {
-            return response()->json([
-                'erro' => count($pendentes).' tarefa(s) de avaliação ainda pendente(s)',
-            ], 409);
+            return $this->respostaResultado($request, count($pendentes).' tarefa(s) de avaliação ainda pendente(s)');
         }
 
+        // Proposta não tem valor próprio: cada aprovada recebe o
+        // valor_por_candidato definido pelo edital.
         $aprovadas = array_values(array_filter($tarefas, fn ($t) => $t['resultado'] === 'aprovada'));
         $resumo = [
             'propostas_avaliadas' => count($tarefas),
             'aprovadas' => count($aprovadas),
             'reprovadas' => count($tarefas) - count($aprovadas),
-            'valor_aprovado' => array_sum(array_map(fn ($t) => (float) $t['valor_solicitado'], $aprovadas)),
+            'valor_por_candidato' => (float) $edital->valor_por_candidato,
+            'valor_aprovado' => count($aprovadas) * (float) $edital->valor_por_candidato,
         ];
 
         DB::transaction(function () use ($edital, $resumo) {
@@ -196,6 +197,15 @@ class EditalController extends Controller
             ]);
         });
 
-        return response()->json(['edital' => $edital->refresh(), 'resumo' => $resumo]);
+        return $request->expectsJson()
+            ? response()->json(['edital' => $edital->refresh(), 'resumo' => $resumo])
+            : redirect('/')->with('ok', "Resultado do edital \"{$edital->titulo}\" publicado: {$resumo['aprovadas']} aprovada(s), R$ ".number_format($resumo['valor_aprovado'], 2, ',', '.').' em apoios.');
+    }
+
+    private function respostaResultado(Request $request, string $erro): JsonResponse|RedirectResponse
+    {
+        return $request->expectsJson()
+            ? response()->json(['erro' => $erro], 409)
+            : redirect()->back()->with('erro', $erro);
     }
 }

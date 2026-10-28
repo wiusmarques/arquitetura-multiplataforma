@@ -188,7 +188,11 @@ async function carregarAvaliacao() {
             <thead><tr><th>Proposta</th><th>Proponente</th><th>Status</th><th>Parecer</th></tr></thead>
             <tbody>${tarefas.map((t) => `
                 <tr>
-                    <td>${esc(t.titulo_proposta)}</td>
+                    <td>
+                        ${esc(t.titulo_proposta)}
+                        <div class="detalhe">${esc(t.descricao)}</div>
+                        <div class="detalhe"><em>Retorno esperado:</em> ${esc(t.retorno_esperado)}</div>
+                    </td>
                     <td>${esc(t.proponente)}</td>
                     <td class="status-${esc(t.status)}">${esc(t.status)}${t.resultado ? ` (${esc(t.resultado)})` : ''}</td>
                     <td>${t.status === 'concluida' ? (esc(t.parecer) || '—') : `

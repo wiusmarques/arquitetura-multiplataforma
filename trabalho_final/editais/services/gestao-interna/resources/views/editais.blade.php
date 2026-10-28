@@ -125,6 +125,7 @@
                             </form>
                         @else
                             <a href="/editais/{{ $edital->id }}/propostas">Propostas</a>
+                            · <a href="/editais/{{ $edital->id }}/avaliacao">Avaliação</a>
                         @endif
                     </td>
                 </tr>

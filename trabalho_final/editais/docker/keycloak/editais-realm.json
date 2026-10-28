@@ -72,6 +72,7 @@
       "secret": "gestao-interna-secret",
       "standardFlowEnabled": true,
       "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
       "redirectUris": [
         "http://gestao.editais.local:8080/*",
         "http://localhost:8080/*",
@@ -168,6 +169,14 @@
       "enabled": true,
       "serviceAccountClientId": "orgao-controle",
       "groups": ["/sistemas-externos"]
+    },
+    {
+      "username": "service-account-gestao-interna",
+      "enabled": true,
+      "serviceAccountClientId": "gestao-interna",
+      "clientRoles": {
+        "realm-management": ["view-users"]
+      }
     }
   ]
 }
