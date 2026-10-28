@@ -28,6 +28,7 @@ Os JWTs carregam a claim **`groups`** (caminho completo, ex.: `/proponentes`) al
 | Client | Tipo | Uso |
 |---|---|---|
 | `app-web` | Público, PKCE S256 | SPA — login dos usuários humanos |
+| `gestao-interna` | Confidencial, Authorization Code | Painel server-side do monolito (só `admin`) — secret `gestao-interna-secret` |
 | `orgao-controle` | Confidencial, service account | Sistema externo M2M — secret `orgao-controle-secret` |
 
 ## URLs e execuções úteis
