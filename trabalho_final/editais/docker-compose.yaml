@@ -1,0 +1,322 @@
+# Plataforma de Editais Federais — infraestrutura.
+#
+# Este compose sobe a infraestrutura do laboratório: PostgreSQL, Kafka (KRaft),
+# Keycloak (simulando o Gov.br como Identity Provider), Mailpit (simulando o
+# servidor de e-mail) e Kafka UI. Os serviços da aplicação (gestao-interna,
+# bff-gateway, edital-service, proposta-service, avaliacao-service,
+# notification-service) entram aqui conforme forem implementados, cada um com
+# seu Dockerfile em services/<nome>/.
+#
+# O compose lê o `.env` da pasta automaticamente para interpolar os `${...}`
+# (credenciais e portas). `make up` garante o `.env` antes de subir.
+#
+# Versões de imagem alinhadas com o ambiente da disciplina (PizzaExpress).
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: editais-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-editais}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-editais}
+      POSTGRES_DB: ${POSTGRES_DB:-editais}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      # Database per service: um schema e uma role por serviço, sem acesso cruzado.
+      - ./docker/postgres/init-schemas.sql:/docker-entrypoint-initdb.d/init-schemas.sql:ro
+      # Database `keycloak` à parte para o Identity Provider.
+      - ./docker/postgres/init-keycloak.sql:/docker-entrypoint-initdb.d/init-keycloak.sql:ro
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-editais}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    container_name: editais-kafka
+    restart: unless-stopped
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:29092,CONTROLLER://0.0.0.0:9093
+      # PLAINTEXT (kafka:9092) — para os containers na rede do compose.
+      # PLAINTEXT_HOST (localhost:29092) — para processos rodando fora do Docker;
+      # sem ele o client de fora recebe "kafka:9092" no metadata e falha, porque
+      # "kafka" só resolve dentro da rede do compose.
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      # Os tópicos do domínio são criados explicitamente por `make topics-up`
+      # (partições e retenção são decisão de arquitetura, não efeito colateral).
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      CLUSTER_ID: "RWRpdGFpc0ZlZGVyYWlzMQ" # UUID fixo para o KRaft
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    ports:
+      - "${KAFKA_HOST_PORT:-29092}:29092"
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:v0.7.2
+    container_name: editais-kafka-ui
+    restart: unless-stopped
+    environment:
+      KAFKA_CLUSTERS_0_NAME: editais
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+    ports:
+      - "${KAFKA_UI_PORT:-8090}:8080"
+    depends_on:
+      kafka:
+        condition: service_healthy
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.6.0
+    container_name: editais-keycloak
+    restart: unless-stopped
+    # --import-realm importa o realm `editais` (roles, clients e usuários de
+    # teste) do JSON em docker/keycloak/ na primeira subida.
+    command: start-dev --import-realm
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_ADMIN_USER:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_ADMIN_PASSWORD:-admin}
+      KC_HEALTH_ENABLED: "true"
+      # Keycloak escuta na MESMA porta dentro e fora do compose (8089), e o
+      # alias de rede abaixo faz "idp.editais.local" resolver para este
+      # container. Assim http://idp.editais.local:8089 funciona idêntico no
+      # navegador (via hosts da máquina) e nos serviços (via alias) — e o
+      # issuer dos JWTs não diverge entre quem emite e quem valida.
+      KC_HTTP_PORT: 8089
+      # Banco PostgreSQL dedicado (database `keycloak`, criado pelo
+      # init-keycloak.sql) em vez do H2 embutido do start-dev — o estado do
+      # IdP fica no mesmo lugar que o resto da persistência do laboratório.
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: keycloak
+    volumes:
+      - ./docker/keycloak:/opt/keycloak/data/import:ro
+    ports:
+      - "${KEYCLOAK_PORT:-8089}:8089"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      default:
+        aliases:
+          - idp.editais.local
+    # curl não existe na imagem UBI do KC 26 — checa o /health/ready pela
+    # porta de management (9000) com bash /dev/tcp.
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/9000 && printf 'GET /health/ready HTTP/1.0\r\nHost: localhost\r\n\r\n' >&3 && cat <&3 | grep -q UP"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 40s
+
+  mailpit:
+    image: axllent/mailpit:v1.20
+    container_name: editais-mailpit
+    restart: unless-stopped
+    ports:
+      - "${MAILPIT_UI_PORT:-8025}:8025" # UI web (caixa de entrada)
+      - "${MAILPIT_SMTP_PORT:-1025}:1025" # SMTP (os serviços enviam para cá)
+
+  # ───────────────────────── Aplicação — PHP / Laravel ──────────────────────
+
+  gestao-interna:
+    build: ./services/gestao-interna
+    image: editais/gestao-interna
+    container_name: editais-gestao
+    restart: unless-stopped
+    environment: &laravel-gestao
+      APP_ENV: production
+      APP_DEBUG: "false"
+      APP_KEY: ${APP_KEY_GESTAO}
+      LOG_CHANNEL: stderr
+      CACHE_STORE: file
+      SESSION_DRIVER: file
+      DB_HOST: postgres
+      DB_DATABASE: ${POSTGRES_DB:-editais}
+      DB_USERNAME: gestao
+      DB_PASSWORD: gestao
+      DB_SCHEMA: gestao
+      KAFKA_BOOTSTRAP: kafka:9092
+      AVALIACAO_SERVICE_URL: http://avaliacao-service:8003
+    ports:
+      - "${GESTAO_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Relay do Outbox do monolito — mesma imagem, processo próprio.
+  gestao-relay:
+    image: editais/gestao-interna
+    container_name: editais-gestao-relay
+    restart: unless-stopped
+    command: ["php", "artisan", "outbox:relay"]
+    environment: *laravel-gestao
+    depends_on:
+      gestao-interna:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
+  proposta-service:
+    build: ./services/proposta-service
+    image: editais/proposta-service
+    container_name: editais-proposta
+    restart: unless-stopped
+    environment: &laravel-proposta
+      APP_ENV: production
+      APP_DEBUG: "false"
+      APP_KEY: ${APP_KEY_PROPOSTA}
+      LOG_CHANNEL: stderr
+      CACHE_STORE: file
+      SESSION_DRIVER: file
+      DB_HOST: postgres
+      DB_DATABASE: ${POSTGRES_DB:-editais}
+      DB_USERNAME: proposta
+      DB_PASSWORD: proposta
+      DB_SCHEMA: propostas
+      KAFKA_BOOTSTRAP: kafka:9092
+    ports:
+      - "${PROPOSTA_PORT:-8002}:8002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  proposta-relay:
+    image: editais/proposta-service
+    container_name: editais-proposta-relay
+    restart: unless-stopped
+    command: ["php", "artisan", "outbox:relay"]
+    environment: *laravel-proposta
+    depends_on:
+      proposta-service:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
+  # Consumer group `proposta-service`: atualiza o aggregate com proposta.avaliada.
+  proposta-consumer:
+    image: editais/proposta-service
+    container_name: editais-proposta-consumer
+    restart: unless-stopped
+    command: ["php", "artisan", "kafka:consumir-avaliadas"]
+    environment: *laravel-proposta
+    depends_on:
+      proposta-service:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
+  bff-gateway:
+    build: ./services/bff-gateway
+    image: editais/bff-gateway
+    container_name: editais-bff
+    restart: unless-stopped
+    environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
+      APP_KEY: ${APP_KEY_BFF}
+      LOG_CHANNEL: stderr
+      CACHE_STORE: file
+      SESSION_DRIVER: file
+      KEYCLOAK_ISSUER: http://idp.editais.local:8089/realms/editais
+      EDITAL_SERVICE_URL: http://edital-service:8001
+      PROPOSTA_SERVICE_URL: http://proposta-service:8002
+      AVALIACAO_SERVICE_URL: http://avaliacao-service:8003
+    ports:
+      - "${BFF_PORT:-8000}:8000"
+    depends_on:
+      keycloak:
+        condition: service_healthy
+
+  # ───────────────────────── Aplicação — Python / FastAPI ───────────────────
+
+  edital-service:
+    build: ./services/edital-service
+    image: editais/edital-service
+    container_name: editais-edital
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://edital:edital@postgres:5432/${POSTGRES_DB:-editais}
+      KAFKA_BOOTSTRAP: kafka:9092
+    ports:
+      - "${EDITAL_PORT:-8001}:8001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
+  avaliacao-service:
+    build: ./services/avaliacao-service
+    image: editais/avaliacao-service
+    container_name: editais-avaliacao
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://avaliacao:avaliacao@postgres:5432/${POSTGRES_DB:-editais}
+      KAFKA_BOOTSTRAP: kafka:9092
+    ports:
+      - "${AVALIACAO_PORT:-8003}:8003"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
+  notification-service:
+    build: ./services/notification-service
+    image: editais/notification-service
+    container_name: editais-notification
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://notificacao:notificacao@postgres:5432/${POSTGRES_DB:-editais}
+      KAFKA_BOOTSTRAP: kafka:9092
+      SMTP_HOST: mailpit
+      SMTP_PORT: 1025
+    ports:
+      - "${NOTIFICATION_PORT:-8004}:8004"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+
+  # ───────────────────────── Frontend ───────────────────────────────────────
+
+  app-web:
+    build: ./apps/app-web
+    image: editais/app-web
+    container_name: editais-app-web
+    restart: unless-stopped
+    environment:
+      # URLs visíveis do NAVEGADOR (hosts da máquina), não da rede interna.
+      BFF_PUBLIC_URL: http://bff.editais.local:${BFF_PORT:-8000}
+      KEYCLOAK_PUBLIC_URL: http://idp.editais.local:${KEYCLOAK_PORT:-8089}
+    ports:
+      - "${APP_WEB_PORT:-5173}:80"
+    depends_on:
+      bff-gateway:
+        condition: service_healthy
+
+volumes:
+  pg_data:
+  kafka_data:

@@ -1,0 +1,140 @@
+{
+  "realm": "editais",
+  "enabled": true,
+  "displayName": "Plataforma de Editais Federais (Gov.br simulado)",
+  "registrationAllowed": false,
+  "accessTokenLifespan": 600,
+  "roles": {
+    "realm": [
+      { "name": "admin", "description": "Administração interna — gestão de editais" },
+      { "name": "avaliador", "description": "Avaliador externo — pareceres via app web" },
+      { "name": "proponente", "description": "PF/PJ que submete propostas" },
+      { "name": "sistema-externo", "description": "Sistemas consumidores (órgãos de controle) — acesso M2M à API" }
+    ]
+  },
+  "groups": [
+    {
+      "name": "administradores",
+      "path": "/administradores",
+      "realmRoles": ["admin"]
+    },
+    {
+      "name": "proponentes",
+      "path": "/proponentes",
+      "realmRoles": ["proponente"]
+    },
+    {
+      "name": "avaliadores",
+      "path": "/avaliadores",
+      "realmRoles": ["avaliador"]
+    },
+    {
+      "name": "sistemas-externos",
+      "path": "/sistemas-externos",
+      "realmRoles": ["sistema-externo"]
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "app-web",
+      "name": "Portal externo (SPA)",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": [
+        "http://app.editais.local:5173/*",
+        "http://localhost:5173/*"
+      ],
+      "webOrigins": ["+"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      },
+      "protocolMappers": [
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "config": {
+            "claim.name": "groups",
+            "full.path": "true",
+            "access.token.claim": "true",
+            "id.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "orgao-controle",
+      "name": "Órgão de controle (sistema externo)",
+      "description": "Sistema externo consumidor da API (órgãos de controle / portais de dados abertos). Máquina-a-máquina: client_credentials com service account — sem usuário humano. Secret de laboratório; em produção iria para um secret manager.",
+      "publicClient": false,
+      "secret": "orgao-controle-secret",
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "protocolMappers": [
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "config": {
+            "claim.name": "groups",
+            "full.path": "true",
+            "access.token.claim": "true",
+            "id.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "maria.admin",
+      "enabled": true,
+      "firstName": "Maria",
+      "lastName": "Administradora",
+      "email": "maria.admin@exemplo.local",
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "Puc@2026!", "temporary": false }],
+      "groups": ["/administradores"]
+    },
+    {
+      "username": "ana.avaliadora",
+      "enabled": true,
+      "firstName": "Ana",
+      "lastName": "Avaliadora",
+      "email": "ana.avaliadora@exemplo.local",
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "Puc@2026!", "temporary": false }],
+      "groups": ["/avaliadores"]
+    },
+    {
+      "username": "joao.proponente",
+      "enabled": true,
+      "firstName": "João",
+      "lastName": "Proponente",
+      "email": "joao.proponente@exemplo.local",
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "Puc@2026!", "temporary": false }],
+      "groups": ["/proponentes"]
+    },
+    {
+      "username": "empresa.acme",
+      "enabled": true,
+      "firstName": "ACME",
+      "lastName": "Consultoria Ltda",
+      "email": "contato@acme.exemplo.local",
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "Puc@2026!", "temporary": false }],
+      "groups": ["/proponentes"]
+    },
+    {
+      "username": "service-account-orgao-controle",
+      "enabled": true,
+      "serviceAccountClientId": "orgao-controle",
+      "groups": ["/sistemas-externos"]
+    }
+  ]
+}
