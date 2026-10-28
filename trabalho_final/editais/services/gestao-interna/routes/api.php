@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Route;
 // exige bearer JWT com a role `admin` (validação JWKS no middleware).
 Route::middleware('admin')->group(function () {
     Route::get('/editais', [EditalController::class, 'listar']);
+    Route::get('/editais/{id}/propostas', [EditalController::class, 'propostas']);
     Route::post('/editais', [EditalController::class, 'criar']);
     Route::put('/editais/{id}', [EditalController::class, 'atualizar']);
     Route::delete('/editais/{id}', [EditalController::class, 'excluir']);

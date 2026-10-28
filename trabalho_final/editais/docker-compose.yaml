@@ -144,6 +144,7 @@ services:
       DB_SCHEMA: gestao
       KAFKA_BOOTSTRAP: kafka:9092
       AVALIACAO_SERVICE_URL: http://avaliacao-service:8003
+      PROPOSTA_SERVICE_URL: http://proposta-service:8002
       # Login OIDC do admin: o issuer resolve igual no navegador (hosts) e no
       # container (alias idp.editais.local), então o mesmo valor serve para o
       # redirect do browser e para a troca do code/validação JWKS no servidor.

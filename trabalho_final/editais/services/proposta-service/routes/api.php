@@ -11,3 +11,7 @@ use Illuminate\Support\Facades\Route;
 Route::post('/propostas', [PropostaController::class, 'submeter']);
 Route::get('/propostas', [PropostaController::class, 'listar']);
 Route::get('/propostas/{id}', [PropostaController::class, 'consultar']);
+
+// Uso interno da administração (gestao-interna, rede interna — não passa
+// pelo BFF): todas as propostas de um edital, sem recorte por proponente.
+Route::get('/editais/{editalId}/propostas', [PropostaController::class, 'porEdital']);

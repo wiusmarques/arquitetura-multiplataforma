@@ -25,13 +25,21 @@ class AuthController extends Controller
 
         $kc = config('services.keycloak');
 
-        return redirect($kc['issuer'].'/protocol/openid-connect/auth?'.http_build_query([
+        $params = [
             'client_id' => $kc['client_id'],
             'redirect_uri' => $kc['public_url'].'/auth/callback',
             'response_type' => 'code',
             'scope' => 'openid',
             'state' => $state,
-        ]));
+        ];
+        // "Entrar com outra conta": sem isso o SSO do Keycloak devolve a
+        // sessão atual sem mostrar a tela de login (loop para quem caiu no
+        // acesso negado). prompt=login força reautenticação.
+        if ($request->query('prompt') === 'login') {
+            $params['prompt'] = 'login';
+        }
+
+        return redirect($kc['issuer'].'/protocol/openid-connect/auth?'.http_build_query($params));
     }
 
     public function callback(Request $request, ValidadorToken $validador)

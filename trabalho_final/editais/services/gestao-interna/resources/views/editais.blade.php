@@ -123,6 +123,8 @@
                                 @csrf
                                 <button type="submit">Excluir</button>
                             </form>
+                        @else
+                            <a href="/editais/{{ $edital->id }}/propostas">Propostas</a>
                         @endif
                     </td>
                 </tr>

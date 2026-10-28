@@ -45,6 +45,15 @@ class EloquentPropostaRepository implements PropostaRepository
             ->all();
     }
 
+    public function porEdital(string $editalId): array
+    {
+        return PropostaModel::where('edital_id', $editalId)
+            ->orderBy('submetida_em')
+            ->get()
+            ->map(fn (PropostaModel $linha) => $this->paraDominio($linha))
+            ->all();
+    }
+
     private function paraDominio(PropostaModel $linha): Proposta
     {
         return Proposta::reconstituir(

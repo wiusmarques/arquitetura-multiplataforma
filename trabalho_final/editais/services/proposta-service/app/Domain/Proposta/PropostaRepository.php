@@ -14,4 +14,7 @@ interface PropostaRepository
 
     /** @return Proposta[] */
     public function porProponente(string $proponente): array;
+
+    /** @return Proposta[] */
+    public function porEdital(string $editalId): array;
 }

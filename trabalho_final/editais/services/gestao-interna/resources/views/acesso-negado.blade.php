@@ -16,7 +16,7 @@
         <h1>Acesso restrito à administração</h1>
         <p>O usuário <strong>{{ $usuario }}</strong> autenticou no Keycloak, mas não tem o papel
             <code>admin</code> — este painel é exclusivo da gestão interna.</p>
-        <p><a href="/login">Entrar com outra conta</a></p>
+        <p><a href="/login?prompt=login">Entrar com outra conta</a></p>
     </div>
 </body>
 </html>

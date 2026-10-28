@@ -20,6 +20,7 @@ Route::middleware('admin')->group(function () {
     // Os forms do painel usam as MESMAS ações da API (um fluxo só a manter);
     // o controller responde redirect+flash para HTML e JSON para a API.
     Route::post('/editais', [EditalController::class, 'criar']);
+    Route::get('/editais/{id}/propostas', [EditalController::class, 'propostas']);
     Route::post('/editais/{id}/publicar', [EditalController::class, 'publicar']);
     Route::post('/editais/{id}/excluir', [EditalController::class, 'excluir']);
 });

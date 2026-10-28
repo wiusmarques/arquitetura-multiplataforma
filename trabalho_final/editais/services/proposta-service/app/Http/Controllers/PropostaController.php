@@ -62,6 +62,15 @@ class PropostaController extends Controller
         ));
     }
 
+    /** Visão da administração: todas as propostas de um edital. */
+    public function porEdital(string $editalId, PropostaRepository $propostas): JsonResponse
+    {
+        return response()->json(array_map(
+            fn (Proposta $p) => $this->apresentar($p),
+            $propostas->porEdital($editalId),
+        ));
+    }
+
     public function consultar(Request $request, string $id, PropostaRepository $propostas): JsonResponse
     {
         $proposta = $propostas->porId($id);

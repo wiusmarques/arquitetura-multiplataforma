@@ -131,6 +131,26 @@ class EditalController extends Controller
     }
 
     /**
+     * Acompanhamento da administração: as propostas moram no proposta-service
+     * (dono do dado); o monolito consulta por REST e só apresenta.
+     */
+    public function propostas(Request $request, string $id)
+    {
+        $edital = Edital::findOrFail($id);
+
+        $propostas = Http::timeout(5)
+            ->get(config('services.proposta.base')."/v1/editais/{$edital->id}/propostas")
+            ->throw()
+            ->json();
+
+        if ($request->expectsJson()) {
+            return response()->json(['edital' => $edital, 'propostas' => $propostas]);
+        }
+
+        return view('propostas', ['edital' => $edital, 'propostas' => $propostas]);
+    }
+
+    /**
      * Fecha o edital e publica o resultado: o resumo vem do avaliacao-service
      * (REST síncrono, admin -> avaliação) e o evento resultado.publicado sai
      * pela outbox para o read model e as notificações.
