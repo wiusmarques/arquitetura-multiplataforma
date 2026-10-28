@@ -7,6 +7,8 @@
 COMPOSE ?= docker compose
 
 TOPICOS = edital.publicado proposta.submetida proposta.avaliada resultado.publicado
+# Linha completa de hosts. Obrigatórios só os do fluxo OIDC (idp e gestao);
+# os demais são conveniência — tudo também responde em localhost:<porta>.
 HOSTS   = app.editais.local gestao.editais.local bff.editais.local \
           edital.editais.local proposta.editais.local avaliacao.editais.local \
           notificacao.editais.local idp.editais.local mail.editais.local \

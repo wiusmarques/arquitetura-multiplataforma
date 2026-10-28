@@ -10,7 +10,7 @@
 # O compose lê o `.env` da pasta automaticamente para interpolar os `${...}`
 # (credenciais e portas). `make up` garante o `.env` antes de subir.
 #
-# Versões de imagem alinhadas com o ambiente da disciplina (PizzaExpress).
+# Versões de imagem fixadas para o build ser reproduzível em qualquer máquina.
 
 services:
   postgres:
@@ -43,10 +43,6 @@ services:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
       KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:29092,CONTROLLER://0.0.0.0:9093
-      # PLAINTEXT (kafka:9092) — para os containers na rede do compose.
-      # PLAINTEXT_HOST (localhost:29092) — para processos rodando fora do Docker;
-      # sem ele o client de fora recebe "kafka:9092" no metadata e falha, porque
-      # "kafka" só resolve dentro da rede do compose.
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT,CONTROLLER:PLAINTEXT
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
@@ -94,15 +90,7 @@ services:
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_ADMIN_USER:-admin}
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_ADMIN_PASSWORD:-admin}
       KC_HEALTH_ENABLED: "true"
-      # Keycloak escuta na MESMA porta dentro e fora do compose (8089), e o
-      # alias de rede abaixo faz "idp.editais.local" resolver para este
-      # container. Assim http://idp.editais.local:8089 funciona idêntico no
-      # navegador (via hosts da máquina) e nos serviços (via alias) — e o
-      # issuer dos JWTs não diverge entre quem emite e quem valida.
       KC_HTTP_PORT: 8089
-      # Banco PostgreSQL dedicado (database `keycloak`, criado pelo
-      # init-keycloak.sql) em vez do H2 embutido do start-dev — o estado do
-      # IdP fica no mesmo lugar que o resto da persistência do laboratório.
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
       KC_DB_USERNAME: keycloak
@@ -156,10 +144,19 @@ services:
       DB_SCHEMA: gestao
       KAFKA_BOOTSTRAP: kafka:9092
       AVALIACAO_SERVICE_URL: http://avaliacao-service:8003
+      # Login OIDC do admin: o issuer resolve igual no navegador (hosts) e no
+      # container (alias idp.editais.local), então o mesmo valor serve para o
+      # redirect do browser e para a troca do code/validação JWKS no servidor.
+      KEYCLOAK_ISSUER: http://idp.editais.local:8089/realms/editais
+      KEYCLOAK_CLIENT_ID: gestao-interna
+      KEYCLOAK_CLIENT_SECRET: gestao-interna-secret
+      GESTAO_PUBLIC_URL: http://gestao.editais.local:${GESTAO_PORT:-8080}
     ports:
       - "${GESTAO_PORT:-8080}:8080"
     depends_on:
       postgres:
+        condition: service_healthy
+      keycloak:
         condition: service_healthy
 
   # Relay do Outbox do monolito — mesma imagem, processo próprio.
