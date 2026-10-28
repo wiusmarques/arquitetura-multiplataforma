@@ -190,6 +190,8 @@ services:
       DB_PASSWORD: proposta
       DB_SCHEMA: propostas
       KAFKA_BOOTSTRAP: kafka:9092
+      # Consulta o read model para validar se o edital aceita propostas.
+      EDITAL_SERVICE_URL: http://edital-service:8001
     ports:
       - "${PROPOSTA_PORT:-8002}:8002"
     depends_on:
@@ -241,6 +243,10 @@ services:
       - "${BFF_PORT:-8000}:8000"
     depends_on:
       keycloak:
+        condition: service_healthy
+      edital-service:
+        condition: service_healthy
+      proposta-service:
         condition: service_healthy
 
   # ───────────────────────── Aplicação — Python / FastAPI ───────────────────
@@ -305,8 +311,10 @@ services:
     container_name: editais-app-web
     restart: unless-stopped
     environment:
-      # URLs visíveis do NAVEGADOR (hosts da máquina), não da rede interna.
-      BFF_PUBLIC_URL: http://bff.editais.local:${BFF_PORT:-8000}
+      # URLs visíveis do NAVEGADOR, não da rede interna. O BFF vai por
+      # localhost (não exige hosts); o Keycloak precisa do hostname para o
+      # issuer do JWT bater entre navegador e serviços.
+      BFF_PUBLIC_URL: http://localhost:${BFF_PORT:-8000}
       KEYCLOAK_PUBLIC_URL: http://idp.editais.local:${KEYCLOAK_PORT:-8089}
     ports:
       - "${APP_WEB_PORT:-5173}:80"

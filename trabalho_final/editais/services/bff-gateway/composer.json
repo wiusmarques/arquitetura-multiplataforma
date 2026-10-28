@@ -1,0 +1,26 @@
+{
+    "name": "editais/bff-gateway",
+    "description": "Backend for Frontend — entrada única de web/mobile, valida JWT (JWKS do Keycloak) e roteia para os serviços",
+    "type": "project",
+    "require": {
+        "php": "^8.3",
+        "firebase/php-jwt": "^6.10",
+        "guzzlehttp/guzzle": "^7.8",
+        "laravel/framework": "^11.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "App\\": "app/"
+        }
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "preferred-install": "dist",
+        "sort-packages": true,
+        "platform": {
+            "php": "8.3.0"
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}

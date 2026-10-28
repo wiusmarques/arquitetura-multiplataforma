@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Plataforma de Editais Federais</title>
+    <!-- Adapter oficial do Keycloak: Authorization Code Flow + PKCE (S256).
+         O token NUNCA é validado aqui — client público só obtém e envia o
+         Bearer; quem valida é o BFF (JWKS). -->
+    <!-- keycloak-js 26 só publica ESM; o import fica dentro do app.js (module). -->
+    <script src="config.js"></script>
+    <style>
+        :root { color-scheme: light; }
+        * { box-sizing: border-box; }
+        body { font-family: system-ui, sans-serif; margin: 0; color: #1f2937; background: #f9fafb; }
+        header { background: #08427b; color: #fff; padding: 1rem 1.5rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: .5rem; }
+        header h1 { font-size: 1.1rem; margin: 0; }
+        main { max-width: 1000px; margin: 1.5rem auto; padding: 0 1rem 3rem; }
+        nav { display: flex; gap: .4rem; flex-wrap: wrap; margin-bottom: 1rem; }
+        nav button { border: 1px solid #d1d5db; background: #fff; padding: .5rem .9rem; border-radius: 6px; cursor: pointer; font-size: .9rem; }
+        nav button.ativa { background: #1168bd; color: #fff; border-color: #1168bd; }
+        button.acao { background: #1168bd; color: #fff; border: none; padding: .45rem .9rem; border-radius: 6px; cursor: pointer; }
+        button.acao.secundaria { background: #6b7280; }
+        table { border-collapse: collapse; width: 100%; background: #fff; }
+        th, td { border: 1px solid #e5e7eb; padding: .5rem .7rem; text-align: left; font-size: .88rem; }
+        th { background: #f3f4f6; }
+        form { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; display: grid; gap: .6rem; max-width: 480px; }
+        input, textarea, select { padding: .45rem; border: 1px solid #d1d5db; border-radius: 6px; font: inherit; }
+        .aviso { background: #fef3c7; border: 1px solid #f59e0b; padding: .6rem .9rem; border-radius: 6px; margin-bottom: 1rem; font-size: .9rem; }
+        .ok { background: #dcfce7; border-color: #16a34a; }
+        .erro { background: #fee2e2; border-color: #dc2626; }
+        #usuario { font-size: .85rem; }
+        .status-aprovada { color: #166534; font-weight: 600; }
+        .status-reprovada { color: #991b1b; font-weight: 600; }
+        .status-submetida, .status-pendente, .status-atribuida { color: #92400e; font-weight: 600; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Plataforma de Editais Federais</h1>
+        <div id="usuario">
+            <span id="usuario-nome"></span>
+            <button class="acao" id="btn-login">Entrar (Gov.br simulado)</button>
+            <button class="acao secundaria" id="btn-logout" hidden>Sair</button>
+        </div>
+    </header>
+    <main>
+        <nav>
+            <button data-aba="editais" class="ativa">Editais</button>
+            <button data-aba="transparencia">Transparência</button>
+            <button data-aba="propostas">Minhas propostas</button>
+            <button data-aba="avaliacao">Avaliação</button>
+        </nav>
+        <div id="mensagem" hidden></div>
+        <section id="aba-editais"></section>
+        <section id="aba-transparencia" hidden></section>
+        <section id="aba-propostas" hidden></section>
+        <section id="aba-avaliacao" hidden></section>
+    </main>
+    <script type="module" src="app.js"></script>
+</body>
+</html>

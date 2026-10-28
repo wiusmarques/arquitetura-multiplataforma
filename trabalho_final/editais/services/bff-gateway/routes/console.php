@@ -1,0 +1,3 @@
+<?php
+
+// Sem comandos próprios.

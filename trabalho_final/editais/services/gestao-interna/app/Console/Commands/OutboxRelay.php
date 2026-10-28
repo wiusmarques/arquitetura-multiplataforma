@@ -34,7 +34,7 @@ class OutboxRelay extends Command
                 $linhas = Outbox::whereNull('publicado_em')
                     ->orderBy('id')
                     ->limit(100)
-                    ->lockForUpdate()
+                    ->lock('for update skip locked')
                     ->get();
 
                 foreach ($linhas as $linha) {

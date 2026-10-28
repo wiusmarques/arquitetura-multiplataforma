@@ -1,0 +1,9 @@
+// Gerado no start do container a partir das variáveis de ambiente
+// (ver Dockerfile): as URLs aqui são as visíveis do NAVEGADOR, por isso
+// usam os hostnames *.editais.local configurados no hosts da máquina.
+window.CONFIG = {
+    BFF_URL: '${BFF_PUBLIC_URL}',
+    KEYCLOAK_URL: '${KEYCLOAK_PUBLIC_URL}',
+    KEYCLOAK_REALM: 'editais',
+    KEYCLOAK_CLIENT: 'app-web',
+};
