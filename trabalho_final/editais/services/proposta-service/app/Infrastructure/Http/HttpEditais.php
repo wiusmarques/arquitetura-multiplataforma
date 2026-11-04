@@ -27,6 +27,7 @@ class HttpEditais implements Editais
         return [
             'status' => (string) ($edital['status'] ?? ''),
             'data_encerramento' => $edital['data_encerramento'] ?? null,
+            'valor_por_candidato' => $edital['valor_por_candidato'] ?? null,
         ];
     }
 }

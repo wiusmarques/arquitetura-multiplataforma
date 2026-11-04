@@ -28,4 +28,7 @@ Route::middleware('admin')->group(function () {
     // Distribuição das avaliações (dados no avaliacao-service, via REST).
     Route::get('/editais/{id}/avaliacao', [\App\Http\Controllers\AvaliacaoController::class, 'painel']);
     Route::post('/tarefas/{tarefaId}/avaliador', [\App\Http\Controllers\AvaliacaoController::class, 'atribuirAvaliador']);
+
+    // Nova tentativa de pagamento (executada pelo proposta-service).
+    Route::post('/propostas/{propostaId}/pagar', [\App\Http\Controllers\PagamentoController::class, 'solicitar']);
 });

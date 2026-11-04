@@ -22,6 +22,10 @@
         .status-reprovada { color: #991b1b; }
         .status-paga { color: #1d4ed8; }
         .detalhe { color: #6b7280; font-size: .8rem; margin-top: .25rem; }
+        .flash { margin-top: 1rem; padding: .6rem .9rem; border-radius: 6px; font-size: .9rem; }
+        .flash-ok { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
+        .flash-erro { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+        button { padding: .35rem .7rem; border: 1px solid #1d4ed8; border-radius: 6px; background: #1d4ed8; color: #fff; cursor: pointer; font-size: .8rem; margin-top: .3rem; }
     </style>
 </head>
 <body>
@@ -29,6 +33,13 @@
     <h1>Propostas — {{ $edital->titulo }}</h1>
     <small>Vigência {{ $edital->data_abertura?->format('d/m/Y') }} — {{ $edital->data_encerramento?->format('d/m/Y') }}
         · {{ $edital->numero_candidatos }} vagas · R$ {{ number_format((float) $edital->valor_por_candidato, 2, ',', '.') }} por candidato</small>
+
+    @if (session('ok'))
+        <div class="flash flash-ok">{{ session('ok') }}</div>
+    @endif
+    @if (session('erro'))
+        <div class="flash flash-erro">{{ session('erro') }}</div>
+    @endif
 
     @php
         $porStatus = collect($propostas)->countBy('status');
@@ -63,7 +74,13 @@
                     <td>{{ $p['parecer'] ?? '—' }}</td>
                     <td>
                         @if ($p['status'] === 'paga')
-                            pago
+                            pago em {{ \Carbon\Carbon::parse($p['pago_em'])->format('d/m/Y H:i') }}
+                        @elseif ($p['status'] === 'aprovada' && ($p['pagamento_falhou_em'] ?? null))
+                            falha no gateway
+                            <form method="post" action="/propostas/{{ $p['id'] }}/pagar">
+                                @csrf
+                                <button type="submit" class="primario">Solicitar novamente</button>
+                            </form>
                         @elseif ($p['status'] === 'aprovada')
                             aguardando pagamento (R$ {{ number_format((float) $edital->valor_por_candidato, 2, ',', '.') }})
                         @else

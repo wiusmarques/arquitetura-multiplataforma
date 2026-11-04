@@ -4,6 +4,10 @@ use App\Http\Controllers\AvaliacaoController;
 use App\Http\Controllers\EditalController;
 use Illuminate\Support\Facades\Route;
 
+// Stub do gateway de pagamento (ilustrativo, chamado pelo worker do
+// proposta-service na rede interna — por isso fora do middleware de admin).
+Route::post('/pagamentos', [\App\Http\Controllers\PagamentoController::class, 'executar']);
+
 // API interna da administração. O monolito é exclusivo da rede interna — não
 // passa pelo BFF nem é exposto a proponente/cidadão/avaliador. Toda a API
 // exige bearer JWT com a role `admin` (validação JWKS no middleware).

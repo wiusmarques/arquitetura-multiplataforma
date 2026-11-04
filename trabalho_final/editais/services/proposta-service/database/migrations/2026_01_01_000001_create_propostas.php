@@ -19,8 +19,11 @@ return new class extends Migration
             $table->integer('meses_execucao');
             $table->string('status', 20)->default('submetida');
             $table->text('parecer')->nullable();
-            // Preenchido pelo fluxo de pagamentos (consumer de resultado.publicado).
+            // Preenchidos pelo fluxo de pagamentos (consumer de resultado.publicado):
+            // sucesso marca pago_em; falha marca pagamento_falhou_em e permite
+            // nova solicitação.
             $table->timestampTz('pago_em')->nullable();
+            $table->timestampTz('pagamento_falhou_em')->nullable();
             $table->timestampTz('submetida_em');
         });
     }

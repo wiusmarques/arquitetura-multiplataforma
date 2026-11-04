@@ -4,8 +4,10 @@ namespace App\Providers;
 
 use App\Application\Ports\Editais;
 use App\Application\Ports\Outbox;
+use App\Application\Ports\Pagamentos;
 use App\Domain\Proposta\PropostaRepository;
 use App\Infrastructure\Http\HttpEditais;
+use App\Infrastructure\Http\HttpPagamentos;
 use App\Infrastructure\Persistence\EloquentOutbox;
 use App\Infrastructure\Persistence\EloquentPropostaRepository;
 use Illuminate\Support\ServiceProvider;
@@ -22,6 +24,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(PropostaRepository::class, EloquentPropostaRepository::class);
         $this->app->bind(Outbox::class, EloquentOutbox::class);
         $this->app->bind(Editais::class, HttpEditais::class);
+        $this->app->bind(Pagamentos::class, HttpPagamentos::class);
     }
 
     public function boot(): void

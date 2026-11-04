@@ -24,6 +24,8 @@ class EloquentPropostaRepository implements PropostaRepository
                 'meses_execucao' => $proposta->mesesExecucao,
                 'status' => $proposta->status()->value,
                 'parecer' => $proposta->parecer(),
+                'pago_em' => $proposta->pagoEm()?->format('Y-m-d H:i:sP'),
+                'pagamento_falhou_em' => $proposta->pagamentoFalhouEm()?->format('Y-m-d H:i:sP'),
                 'submetida_em' => $proposta->submetidaEm->format('Y-m-d H:i:sP'),
             ],
         );
@@ -68,6 +70,8 @@ class EloquentPropostaRepository implements PropostaRepository
             status: StatusProposta::from($linha->status),
             submetidaEm: new DateTimeImmutable($linha->submetida_em),
             parecer: $linha->parecer,
+            pagoEm: $linha->pago_em ? new DateTimeImmutable($linha->pago_em) : null,
+            pagamentoFalhouEm: $linha->pagamento_falhou_em ? new DateTimeImmutable($linha->pagamento_falhou_em) : null,
         );
     }
 }

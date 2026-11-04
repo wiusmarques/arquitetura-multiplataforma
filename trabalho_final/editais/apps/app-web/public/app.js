@@ -125,8 +125,9 @@ async function carregarPropostas() {
     // A coluna Pagamento é o acompanhamento pós-aprovação: aprovada aguarda o
     // pagamento (valor = valor por candidato do edital); paga encerra o ciclo.
     const pagamento = (p) => {
-        if (p.status === 'paga') return 'pago';
+        if (p.status === 'paga') return `pago em ${new Date(p.pago_em).toLocaleDateString('pt-BR')}`;
         if (p.status !== 'aprovada') return '—';
+        if (p.pagamento_falhou_em) return 'falha no pagamento — nova tentativa em andamento';
         const valor = porId[p.edital_id]?.valor_por_candidato;
         return `aguardando pagamento${valor != null ? ` (${dinheiro(valor)})` : ''}`;
     };

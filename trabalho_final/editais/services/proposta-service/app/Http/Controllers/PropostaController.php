@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Application\PagarProposta;
 use App\Application\SubmeterProposta;
 use App\Domain\Proposta\Proposta;
 use App\Domain\Proposta\PropostaRepository;
@@ -62,6 +63,23 @@ class PropostaController extends Controller
         ));
     }
 
+    /**
+     * Ressolicitação de pagamento (administração): reexecuta o gateway para
+     * uma proposta aprovada cujo pagamento falhou.
+     */
+    public function pagar(string $id, PagarProposta $useCase): JsonResponse
+    {
+        try {
+            $proposta = $useCase->executar($id);
+        } catch (DomainException $e) {
+            return response()->json(['erro' => $e->getMessage()], 422);
+        } catch (ConnectionException) {
+            return response()->json(['erro' => 'Gateway de pagamento indisponível — tente novamente'], 503);
+        }
+
+        return response()->json($this->apresentar($proposta));
+    }
+
     /** Visão da administração: todas as propostas de um edital. */
     public function porEdital(string $editalId, PropostaRepository $propostas): JsonResponse
     {
@@ -99,6 +117,8 @@ class PropostaController extends Controller
             'status' => $p->status()->value,
             'parecer' => $p->parecer(),
             'aguardando_pagamento' => $p->status() === StatusProposta::Aprovada,
+            'pago_em' => $p->pagoEm()?->format(DATE_ATOM),
+            'pagamento_falhou_em' => $p->pagamentoFalhouEm()?->format(DATE_ATOM),
             'submetida_em' => $p->submetidaEm->format(DATE_ATOM),
         ];
     }

@@ -13,5 +13,7 @@ Route::get('/propostas', [PropostaController::class, 'listar']);
 Route::get('/propostas/{id}', [PropostaController::class, 'consultar']);
 
 // Uso interno da administração (gestao-interna, rede interna — não passa
-// pelo BFF): todas as propostas de um edital, sem recorte por proponente.
+// pelo BFF): todas as propostas de um edital, sem recorte por proponente,
+// e a ressolicitação de pagamento quando o gateway falhou.
 Route::get('/editais/{editalId}/propostas', [PropostaController::class, 'porEdital']);
+Route::post('/propostas/{id}/pagar', [PropostaController::class, 'pagar']);

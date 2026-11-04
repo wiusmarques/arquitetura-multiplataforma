@@ -32,6 +32,8 @@ final class Proposta
         private StatusProposta $status,
         public readonly DateTimeImmutable $submetidaEm,
         private ?string $parecer = null,
+        private ?DateTimeImmutable $pagoEm = null,
+        private ?DateTimeImmutable $pagamentoFalhouEm = null,
     ) {
     }
 
@@ -88,6 +90,29 @@ final class Proposta
         $this->parecer = $parecer;
     }
 
+    /**
+     * Resultado de uma tentativa de pagamento (gateway ilustrativo): efetuado
+     * fecha o ciclo (paga); falha registra o momento e DEIXA o aggregate apto
+     * a uma nova solicitação — reprocessar é transição válida, não exceção.
+     */
+    public function registrarPagamento(bool $efetuado): void
+    {
+        if ($this->status === StatusProposta::Paga) {
+            throw new DomainException("Proposta {$this->id} já foi paga.");
+        }
+        if ($this->status !== StatusProposta::Aprovada) {
+            throw new DomainException("Só proposta aprovada recebe pagamento (está '{$this->status->value}').");
+        }
+
+        if ($efetuado) {
+            $this->status = StatusProposta::Paga;
+            $this->pagoEm = new DateTimeImmutable();
+            $this->pagamentoFalhouEm = null;
+        } else {
+            $this->pagamentoFalhouEm = new DateTimeImmutable();
+        }
+    }
+
     public function status(): StatusProposta
     {
         return $this->status;
@@ -96,6 +121,16 @@ final class Proposta
     public function parecer(): ?string
     {
         return $this->parecer;
+    }
+
+    public function pagoEm(): ?DateTimeImmutable
+    {
+        return $this->pagoEm;
+    }
+
+    public function pagamentoFalhouEm(): ?DateTimeImmutable
+    {
+        return $this->pagamentoFalhouEm;
     }
 
     /** Reconstitui o aggregate a partir da persistência (uso do Repository). */
@@ -111,8 +146,10 @@ final class Proposta
         StatusProposta $status,
         DateTimeImmutable $submetidaEm,
         ?string $parecer,
+        ?DateTimeImmutable $pagoEm = null,
+        ?DateTimeImmutable $pagamentoFalhouEm = null,
     ): self {
         return new self($id, $editalId, $proponente, $titulo, $descricao, $retornoEsperado,
-            $dataInicio, $mesesExecucao, $status, $submetidaEm, $parecer);
+            $dataInicio, $mesesExecucao, $status, $submetidaEm, $parecer, $pagoEm, $pagamentoFalhouEm);
     }
 }

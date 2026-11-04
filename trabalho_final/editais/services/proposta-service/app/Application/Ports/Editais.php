@@ -10,7 +10,7 @@ namespace App\Application\Ports;
 interface Editais
 {
     /**
-     * @return array{status: string, data_encerramento: ?string}|null
+     * @return array{status: string, data_encerramento: ?string, valor_por_candidato: mixed}|null
      *         null quando o edital não existe
      */
     public function porId(string $editalId): ?array;
