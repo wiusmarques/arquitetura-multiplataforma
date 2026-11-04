@@ -1,0 +1,278 @@
+# EXEMPLO/BOOTSTRAP — Reverse proxy da Plataforma de Editais (uaiotru.com.br)
+#
+# Este é o modelo para a PRIMEIRA instalação numa máquina nova, ainda sem
+# certificados (tudo na porta 80). O arquivo em vigor na produção é o
+# uaiotru.com.br.conf ao lado — já com os blocos TLS do certbot; é ELE que
+# se copia para a máquina atual. Use este .example apenas para recomeçar:
+#   sudo cp uaiotru.com.br.conf.example /etc/nginx/conf.d/uaiotru.com.br.conf
+#   sudo nginx -t && sudo systemctl reload nginx
+#   sudo certbot --nginx -d app.uaiotru.com.br -d bff.uaiotru.com.br \
+#        -d idp.uaiotru.com.br -d gestao.uaiotru.com.br \
+#        -d mail.uaiotru.com.br -d kafka.uaiotru.com.br
+# Depois do certbot, espelhe o resultado de volta no uaiotru.com.br.conf
+# oficial do repositório. Na Cloudflare, modo SSL "Full (strict)".
+#
+# ═══════════════════ SÓ A CLOUDFLARE PODE FALAR COM ESTE NGINX ══════════════
+# Todo subdomínio fica proxied (nuvem laranja) na Cloudflare; requisição que
+# chega por fora (IP direto, scanner, bypass de WAF) é derrubada com 444
+# (conexão fechada sem resposta). Duas peças, nesta ordem:
+#
+#   1. `geo` sobre $realip_remote_addr — o IP do peer TCP ORIGINAL, imune ao
+#      realip — marca quem não é borda Cloudflare.
+#   2. realip restaura o IP do visitante a partir do CF-Connecting-IP, para
+#      logs e para os `allow/deny` dos painéis restritos.
+#
+# NÃO trocar o geo por `allow/deny`: o realip reescreve $remote_addr para o
+# IP do visitante, e um allow das faixas Cloudflare passaria a comparar com
+# o IP errado — bloquearia todo mundo.
+#
+# Faixas publicadas em https://www.cloudflare.com/ips/ (conferidas em
+# 2026-11). Elas mudam raramente; se mudar, atualizar os DOIS blocos abaixo.
+# Reforço recomendado no firewall da máquina: liberar 80/443 só para essas
+# faixas (ufw/iptables) — o nginx corta a conversa, mas o firewall nem deixa
+# a porta aparecer.
+
+# Quem NÃO é Cloudflare (1 = bloquear). $realip_remote_addr = peer TCP real.
+geo $realip_remote_addr $nao_cloudflare {
+    default         1;
+    # IPv4
+    173.245.48.0/20 0;
+    103.21.244.0/22 0;
+    103.22.200.0/22 0;
+    103.31.4.0/22   0;
+    141.101.64.0/18 0;
+    108.162.192.0/18 0;
+    190.93.240.0/20 0;
+    188.114.96.0/20 0;
+    197.234.240.0/22 0;
+    198.41.128.0/17 0;
+    162.158.0.0/15  0;
+    104.16.0.0/13   0;
+    104.24.0.0/14   0;
+    172.64.0.0/13   0;
+    131.0.72.0/22   0;
+    # IPv6
+    2400:cb00::/32  0;
+    2606:4700::/32  0;
+    2803:f800::/32  0;
+    2405:b500::/32  0;
+    2405:8100::/32  0;
+    2a06:98c0::/29  0;
+    2c0f:f248::/32  0;
+}
+
+# Restaura o IP do visitante: $remote_addr (e os logs) passam a mostrar quem
+# navegou, não a borda da Cloudflare. Só confia no header vindo delas.
+real_ip_header CF-Connecting-IP;
+real_ip_recursive on;
+set_real_ip_from 173.245.48.0/20;
+set_real_ip_from 103.21.244.0/22;
+set_real_ip_from 103.22.200.0/22;
+set_real_ip_from 103.31.4.0/22;
+set_real_ip_from 141.101.64.0/18;
+set_real_ip_from 108.162.192.0/18;
+set_real_ip_from 190.93.240.0/20;
+set_real_ip_from 188.114.96.0/20;
+set_real_ip_from 197.234.240.0/22;
+set_real_ip_from 198.41.128.0/17;
+set_real_ip_from 162.158.0.0/15;
+set_real_ip_from 104.16.0.0/13;
+set_real_ip_from 104.24.0.0/14;
+set_real_ip_from 172.64.0.0/13;
+set_real_ip_from 131.0.72.0/22;
+set_real_ip_from 2400:cb00::/32;
+set_real_ip_from 2606:4700::/32;
+set_real_ip_from 2803:f800::/32;
+set_real_ip_from 2405:b500::/32;
+set_real_ip_from 2405:8100::/32;
+set_real_ip_from 2a06:98c0::/29;
+set_real_ip_from 2c0f:f248::/32;
+
+# Mapa subdomínio → porta publicada pelo compose (docker-compose.*.yaml):
+#   app.uaiotru.com.br     → 5173  app-web          (viewers)
+#   bff.uaiotru.com.br     → 8000  bff-gateway      (services)
+#   idp.uaiotru.com.br     → 8089  keycloak         (base)
+#   gestao.uaiotru.com.br  → 8080  gestao-interna   (base)
+#   mail.uaiotru.com.br    → 8025  mailpit UI       (viewers, restrito)
+#   kafka.uaiotru.com.br   → 8090  kafka-ui         (viewers, restrito)
+#
+# Os microsserviços internos (edital 8001, proposta 8002, avaliacao 8003,
+# notificacao 8004) NÃO ganham server block de propósito: em produção só o
+# BFF fala com eles (padrão BFF — nada interno exposto na borda).
+
+# Upgrade de WebSocket (Mailpit e Kafka UI usam para atualizar a tela).
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    ''      close;
+}
+
+# Esquema que o VISITANTE usou: o TLS termina na Cloudflare e ela manda
+# X-Forwarded-Proto; repassar $scheme aqui seria "http" (porta 80 de origem)
+# e o Keycloak montaria URLs http:// — mixed content no admin console.
+map $http_x_forwarded_proto $proto_borda {
+    default $http_x_forwarded_proto;
+    ''      $scheme;
+}
+
+# ─────────────────────────── app-web (SPA pública) ──────────────────────────
+server {
+    listen 80;
+    server_name app.uaiotru.com.br;
+
+    if ($nao_cloudflare) { return 444; }
+
+    location / {
+        proxy_pass http://127.0.0.1:5173;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $proto_borda;
+    }
+}
+
+# ──────────────────── bff-gateway (API que a SPA consome) ───────────────────
+server {
+    listen 80;
+    server_name bff.uaiotru.com.br;
+
+    if ($nao_cloudflare) { return 444; }
+
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $proto_borda;
+        # Authorization: Bearer <JWT> segue para o BFF por padrão; não remover.
+    }
+}
+
+# ─────────────────────────── Keycloak (IdP OIDC) ────────────────────────────
+# O Keycloak PRECISA dos X-Forwarded-* para montar issuer e redirects com o
+# domínio público. No compose de produção, configure o serviço keycloak com:
+#   KC_PROXY_HEADERS: xforwarded
+#   KC_HTTP_ENABLED: "true"            # TLS termina no nginx/Cloudflare
+#   KC_HOSTNAME: https://idp.uaiotru.com.br
+server {
+    listen 80;
+    server_name idp.uaiotru.com.br;
+
+    if ($nao_cloudflare) { return 444; }
+
+    location / {
+        proxy_pass http://127.0.0.1:8089;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $proto_borda;
+        proxy_set_header X-Forwarded-Host  $host;
+        proxy_set_header X-Forwarded-Port  $server_port;
+        # Tokens e headers do KC são grandes; buffers padrão (4k/8k) estouram.
+        proxy_buffer_size   128k;
+        proxy_buffers       4 256k;
+        proxy_busy_buffers_size 256k;
+    }
+}
+
+# ──────────────────── gestao-interna (painel administrativo) ────────────────
+server {
+    listen 80;
+    server_name gestao.uaiotru.com.br;
+
+    if ($nao_cloudflare) { return 444; }
+
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $proto_borda;
+    }
+}
+
+# ════════════════ Ferramentas de observação — acesso RESTRITO ═══════════════
+# Painéis sem autenticação própria forte. Graças ao realip, o `allow/deny`
+# abaixo vale para o IP REAL do visitante (restaurado do CF-Connecting-IP) —
+# troque pela faixa do time, ou proteja com auth_basic/Cloudflare Access.
+
+# ─────────────────────── Mailpit (caixa de e-mails) ─────────────────────────
+server {
+    listen 80;
+    server_name mail.uaiotru.com.br;
+
+    if ($nao_cloudflare) { return 444; }
+
+    # allow 200.200.200.0/24;   # faixa do time (IP real do visitante) — AJUSTAR
+    # deny  all;
+
+    location / {
+        proxy_pass http://127.0.0.1:8025;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $proto_borda;
+        # UI atualiza a caixa por WebSocket.
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade    $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+    }
+}
+
+# ──────────────────────────────── Kafka UI ──────────────────────────────────
+server {
+    listen 80;
+    server_name kafka.uaiotru.com.br;
+
+    if ($nao_cloudflare) { return 444; }
+
+    # allow 200.200.200.0/24;   # faixa do time (IP real do visitante) — AJUSTAR
+    # deny  all;
+
+    location / {
+        proxy_pass http://127.0.0.1:8090;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $proto_borda;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade    $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+    }
+}
+
+# ──────────────────────── Grafana (observabilidade) ─────────────────────────
+# Descomente quando a stack Grafana/Prometheus entrar no compose (porta 3000).
+# server {
+#     listen 80;
+#     server_name grafana.uaiotru.com.br;
+#
+#     if ($nao_cloudflare) { return 444; }
+#
+#     location / {
+#         proxy_pass http://127.0.0.1:3000;
+#         proxy_set_header Host              $host;
+#         proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+#         proxy_set_header X-Forwarded-Proto $proto_borda;
+#         # Live tailing do Grafana usa WebSocket.
+#         proxy_http_version 1.1;
+#         proxy_set_header Upgrade    $http_upgrade;
+#         proxy_set_header Connection $connection_upgrade;
+#     }
+# }
+
+# ──────────────── default: qualquer outro Host, conexão fechada ─────────────
+# Mesmo vindo da Cloudflare, Host desconhecido (acesso por IP, domínio
+# apontado por terceiros) não ganha resposta.
+server {
+    listen 80 default_server;
+    server_name _;
+    return 444;
+}
+
+# O mesmo para a 443: depois que o certbot cria os `listen 443 ssl` nos blocos
+# acima, sem um default_server aqui um Host desconhecido em HTTPS cairia no
+# PRIMEIRO server block da 443 em vez de ser derrubado. `ssl_reject_handshake`
+# corta o handshake TLS na hora — nem precisa de certificado.
+server {
+    listen 443 ssl default_server;
+    server_name _;
+    ssl_reject_handshake on;
+}
