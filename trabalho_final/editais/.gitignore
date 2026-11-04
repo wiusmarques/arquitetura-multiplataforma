@@ -1,2 +1,4 @@
 # O .env de cada máquina nasce do .env.example via `make env-up` — não versiona.
 .env
+# Bytecode do Python não se versiona.
+__pycache__/
