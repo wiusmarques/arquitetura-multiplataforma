@@ -121,6 +121,13 @@ server {
 
     if ($nao_cloudflare) { return 444; }
 
+    # config.js vem de variáveis de ambiente — nunca cachear (ver conf oficial).
+    location = /config.js {
+        proxy_pass http://127.0.0.1:5173;
+        proxy_set_header Host $host;
+        add_header Cache-Control "no-store";
+    }
+
     location / {
         proxy_pass http://127.0.0.1:5173;
         proxy_set_header Host              $host;

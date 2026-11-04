@@ -8,7 +8,10 @@
          O token NUNCA é validado aqui — client público só obtém e envia o
          Bearer; quem valida é o BFF (JWKS). -->
     <!-- keycloak-js 26 só publica ESM; o import fica dentro do app.js (module). -->
-    <script src="config.js"></script>
+    <!-- ?v= é o cache-buster: a Cloudflare cacheia .js incluindo a querystring
+         na chave, então trocar a versão invalida o cache da borda e do
+         navegador. Suba a versão a cada deploy que mexer nos .js. -->
+    <script src="config.js?v=2.1.0"></script>
     <style>
         :root { color-scheme: light; }
         * { box-sizing: border-box; }
@@ -58,6 +61,6 @@
         <section id="aba-propostas" hidden></section>
         <section id="aba-avaliacao" hidden></section>
     </main>
-    <script type="module" src="app.js"></script>
+    <script type="module" src="app.js?v=2.1.0"></script>
 </body>
 </html>
