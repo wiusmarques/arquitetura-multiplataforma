@@ -1,0 +1,191 @@
+# Plataforma de Editais Federais — bloco BASE (estado + legado).
+#
+# Aqui mora o que NÃO escala horizontalmente e o que todo o resto pressupõe de
+# pé: PostgreSQL (o banco compartilhado que o monolito sempre teve), Kafka, o
+# Keycloak (simulando o Gov.br como Identity Provider) e o monolito
+# `gestao-interna` com o relay do seu Outbox. Subir mais réplicas de qualquer
+# um destes exige decisão de infraestrutura (volume, quorum, sessão), não um
+# `--scale`.
+#
+# É um PROJETO compose próprio (`name:` abaixo), como `editais-services`
+# (microsserviços e BFF) e `editais-viewers` (app web e UIs de inspeção):
+# `docker compose ls` e o Docker Desktop mostram os três lado a lado, cada um
+# subindo e descendo sozinho. O que une os três é a rede externa `editais`
+# (ver o fim do arquivo).
+#
+# Sobe sozinho, e é o PRIMEIRO a subir: `make up` espera este bloco ficar
+# saudável antes de soltar os outros dois, que dependem do banco e do broker.
+#
+# O compose lê o `.env` da pasta automaticamente para interpolar os `${...}`
+# (credenciais e portas). `make up` garante o `.env` antes de subir.
+#
+# Versões de imagem fixadas para o build ser reproduzível em qualquer máquina.
+
+name: editais-base
+
+services:
+  # ───────────── Infraestrutura com estado e Identity Provider ──────────────
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: editais-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-editais}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-editais}
+      POSTGRES_DB: ${POSTGRES_DB:-editais}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      # Database per service: um schema e uma role por serviço, sem acesso cruzado.
+      - ./docker/postgres/init-schemas.sql:/docker-entrypoint-initdb.d/init-schemas.sql:ro
+      # Database `keycloak` à parte para o Identity Provider.
+      - ./docker/postgres/init-keycloak.sql:/docker-entrypoint-initdb.d/init-keycloak.sql:ro
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-editais}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    container_name: editais-kafka
+    restart: unless-stopped
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:29092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      # Os tópicos do domínio são criados explicitamente por `make topics-up`
+      # (partições e retenção são decisão de arquitetura, não efeito colateral).
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      CLUSTER_ID: "RWRpdGFpc0ZlZGVyYWlzMQ" # UUID fixo para o KRaft
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    ports:
+      - "${KAFKA_HOST_PORT:-29092}:29092"
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics --bootstrap-server localhost:9092 --list"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.6.0
+    container_name: editais-keycloak
+    restart: unless-stopped
+    # --import-realm importa o realm `editais` (roles, clients e usuários de
+    # teste) do JSON em docker/keycloak/ na primeira subida.
+    command: start-dev --import-realm
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_ADMIN_USER:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_ADMIN_PASSWORD:-admin}
+      KC_HEALTH_ENABLED: "true"
+      KC_HTTP_PORT: 8089
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: keycloak
+    volumes:
+      - ./docker/keycloak:/opt/keycloak/data/import:ro
+    ports:
+      - "${KEYCLOAK_PORT:-8089}:8089"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      default:
+        aliases:
+          - idp.editais.local
+    # curl não existe na imagem UBI do KC 26 — checa o /health/ready pela
+    # porta de management (9000) com bash /dev/tcp.
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/9000 && printf 'GET /health/ready HTTP/1.0\r\nHost: localhost\r\n\r\n' >&3 && cat <&3 | grep -q UP"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 40s
+
+  # ──────────────────────── Monolito — PHP / Laravel ────────────────────────
+
+  gestao-interna:
+    build: ./services/gestao-interna
+    image: editais/gestao-interna
+    container_name: editais-gestao
+    restart: unless-stopped
+    environment: &laravel-gestao
+      APP_ENV: production
+      APP_DEBUG: "false"
+      APP_KEY: ${APP_KEY_GESTAO}
+      LOG_CHANNEL: stderr
+      CACHE_STORE: file
+      SESSION_DRIVER: file
+      DB_HOST: postgres
+      DB_DATABASE: ${POSTGRES_DB:-editais}
+      DB_USERNAME: gestao
+      DB_PASSWORD: gestao
+      DB_SCHEMA: gestao
+      KAFKA_BOOTSTRAP: kafka:9092
+      AVALIACAO_SERVICE_URL: http://avaliacao-service:8003
+      PROPOSTA_SERVICE_URL: http://proposta-service:8002
+      # Login OIDC do admin: o issuer resolve igual no navegador (hosts) e no
+      # container (alias idp.editais.local), então o mesmo valor serve para o
+      # redirect do browser e para a troca do code/validação JWKS no servidor.
+      KEYCLOAK_ISSUER: http://idp.editais.local:8089/realms/editais
+      KEYCLOAK_CLIENT_ID: gestao-interna
+      KEYCLOAK_CLIENT_SECRET: gestao-interna-secret
+      GESTAO_PUBLIC_URL: http://gestao.editais.local:${GESTAO_PORT:-8080}
+    ports:
+      - "${GESTAO_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+
+  # Relay do Outbox do monolito — mesma imagem, processo próprio.
+  gestao-relay:
+    image: editais/gestao-interna
+    container_name: editais-gestao-relay
+    restart: unless-stopped
+    command: ["php", "artisan", "outbox:relay"]
+    environment: *laravel-gestao
+    # Worker, não servidor HTTP: o HEALTHCHECK herdado da imagem bate numa
+    # porta que este processo não abre, e viveria `unhealthy` à toa.
+    healthcheck:
+      disable: true
+    depends_on:
+      gestao-interna:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+
+# Externos aos três projetos, como a rede: o estado do laboratório não pode
+# depender de como os blocos estão arranjados nem sumir num `down`. `make
+# infra` os cria (idempotente) antes de qualquer `up`; `make reset` os apaga.
+volumes:
+  pg_data:
+    name: editais_pg_data
+    external: true
+  kafka_data:
+    name: editais_kafka_data
+    external: true
+
+# Projetos compose diferentes não compartilham a rede default — por isso a rede
+# `editais` é EXTERNA aos três: criada uma vez (`make infra`, embutido no `up`)
+# e usada pelos três blocos. No laboratório o "legado" e os serviços novos
+# conversam direto por nome de container, como numa migração real em que o
+# monolito ainda está no mesmo datacenter.
+networks:
+  default:
+    name: editais
+    external: true

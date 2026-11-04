@@ -1,0 +1,2 @@
+# O .env de cada máquina nasce do .env.example via `make env-up` — não versiona.
+.env

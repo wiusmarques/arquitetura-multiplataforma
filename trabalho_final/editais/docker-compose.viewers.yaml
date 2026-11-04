@@ -1,0 +1,64 @@
+# Plataforma de Editais Federais — bloco VIEWERS (o que se olha).
+#
+# A camada de visualização do laboratório: o app web do proponente e as UIs de
+# inspeção do ambiente — Kafka UI (tópicos e mensagens) e Mailpit (caixa de
+# entrada). É aqui que Grafana e Prometheus entram quando a observabilidade
+# for implementada (portas já reservadas no README).
+#
+# Nenhum deles guarda estado nem é chamado por outro serviço: derrubar este
+# bloco inteiro não para o fluxo de editais, só tira os olhos de cima dele.
+# Por isso é o ÚLTIMO a subir e o primeiro a descer.
+#
+# Este é um PROJETO compose próprio (`name:` abaixo), como `editais-base` e
+# `editais-services`. O que une os três é a rede externa `editais`.
+#
+# Exceção do Mailpit: além da UI em :8025, ele é o servidor SMTP (:1025) para
+# onde o `notification-service` manda e-mail. A UI é o motivo de ele estar
+# aqui; o SMTP continua respondendo pela rede, de qualquer bloco.
+
+name: editais-viewers
+
+services:
+  # ───────────────────────── Frontend ───────────────────────────────────────
+
+  app-web:
+    build: ./apps/app-web
+    image: editais/app-web
+    container_name: editais-app-web
+    restart: unless-stopped
+    environment:
+      # URLs visíveis do NAVEGADOR, não da rede interna. O BFF vai por
+      # localhost (não exige hosts); o Keycloak precisa do hostname para o
+      # issuer do JWT bater entre navegador e serviços.
+      BFF_PUBLIC_URL: http://localhost:${BFF_PORT:-8000}
+      KEYCLOAK_PUBLIC_URL: http://idp.editais.local:${KEYCLOAK_PORT:-8089}
+    ports:
+      - "${APP_WEB_PORT:-5173}:80"
+
+  # ───────────────────────── Inspeção do ambiente ───────────────────────────
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:v0.7.2
+    container_name: editais-kafka-ui
+    restart: unless-stopped
+    environment:
+      KAFKA_CLUSTERS_0_NAME: editais
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+    ports:
+      - "${KAFKA_UI_PORT:-8090}:8080"
+
+  mailpit:
+    image: axllent/mailpit:v1.20
+    container_name: editais-mailpit
+    restart: unless-stopped
+    ports:
+      - "${MAILPIT_UI_PORT:-8025}:8025" # UI web (caixa de entrada)
+      - "${MAILPIT_SMTP_PORT:-1025}:1025" # SMTP (os serviços enviam para cá)
+
+# A MESMA rede dos outros blocos, externa aos três projetos (a razão está
+# comentada em `docker-compose.base.yaml`). `make infra` a cria; `make up`
+# chama esse alvo antes de subir qualquer coisa.
+networks:
+  default:
+    name: editais
+    external: true

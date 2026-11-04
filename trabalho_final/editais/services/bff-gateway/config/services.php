@@ -5,7 +5,7 @@
 return [
     'keycloak' => [
         // Issuer com a MESMA URL dentro e fora do Docker (alias de rede
-        // idp.editais.local + porta 8089 idêntica) — ver docker-compose.yaml.
+        // idp.editais.local + porta 8089 idêntica) — ver docker-compose.base.yaml.
         'issuer' => env('KEYCLOAK_ISSUER', 'http://idp.editais.local:8089/realms/editais'),
     ],
 

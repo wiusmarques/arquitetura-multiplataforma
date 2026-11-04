@@ -1,0 +1,168 @@
+# Plataforma de Editais Federais — bloco SERVICES (o que escala).
+#
+# Aqui moram os processos sem estado: os microsserviços de domínio (edital,
+# proposta, avaliação, notificação), os workers de Kafka / Outbox de cada um e
+# o BFF. O estado deles está todo no bloco `editais-base` — banco e broker; o
+# que se olha (app web, Kafka UI, Mailpit) está em `editais-viewers`.
+#
+# Nota: o `container_name` fixo de cada serviço é conveniência de laboratório
+# (nome estável no `docker ps` e nos logs) e é o único impedimento ao
+# `--scale`. Para demonstrar réplicas de verdade, comente o `container_name`
+# do serviço e rode `up -d --scale proposta-service=3`: o alias de rede é o
+# nome do SERVIÇO, então quem chama `proposta-service:8002` passa a cair em
+# qualquer uma das réplicas.
+#
+# É um PROJETO compose próprio (`name:` abaixo), independente dos outros dois
+# blocos. O que une os três é a rede externa `editais` (ver o fim do arquivo).
+#
+# `depends_on` só enxerga serviços do MESMO projeto, então aqui ele ordena
+# apenas as dependências internas do bloco. A dependência do banco, do Kafka e
+# do IdP é resolvida um nível acima: `make up` sobe o bloco `editais-base` com
+# `--wait` antes deste. Fora disso, `restart: unless-stopped` cobre o resto —
+# um serviço que suba antes do banco apenas reinicia até conseguir conectar.
+
+name: editais-services
+
+services:
+  # ──────────────────────── Domínio — PHP / Laravel ─────────────────────────
+
+  proposta-service:
+    build: ./services/proposta-service
+    image: editais/proposta-service
+    container_name: editais-proposta
+    restart: unless-stopped
+    environment: &laravel-proposta
+      APP_ENV: production
+      APP_DEBUG: "false"
+      APP_KEY: ${APP_KEY_PROPOSTA}
+      LOG_CHANNEL: stderr
+      CACHE_STORE: file
+      SESSION_DRIVER: file
+      DB_HOST: postgres
+      DB_DATABASE: ${POSTGRES_DB:-editais}
+      DB_USERNAME: proposta
+      DB_PASSWORD: proposta
+      DB_SCHEMA: propostas
+      KAFKA_BOOTSTRAP: kafka:9092
+      # Consulta o read model para validar se o edital aceita propostas.
+      EDITAL_SERVICE_URL: http://edital-service:8001
+      # Stub do gateway de pagamento (hospedado no gestao-interna).
+      PAGAMENTO_SERVICE_URL: http://gestao-interna:8080
+    ports:
+      - "${PROPOSTA_PORT:-8002}:8002"
+
+  proposta-relay:
+    image: editais/proposta-service
+    container_name: editais-proposta-relay
+    restart: unless-stopped
+    command: ["php", "artisan", "outbox:relay"]
+    environment: *laravel-proposta
+    # Worker, não servidor HTTP: o HEALTHCHECK herdado da imagem bate numa
+    # porta que este processo não abre, e viveria `unhealthy` à toa.
+    healthcheck:
+      disable: true
+    depends_on:
+      proposta-service:
+        condition: service_healthy
+
+  # Pagamentos em massa: consome resultado.publicado e executa o pagamento de
+  # cada proposta aprovada no gateway (stub do gestao-interna).
+  proposta-pagamentos:
+    image: editais/proposta-service
+    container_name: editais-proposta-pagamentos
+    restart: unless-stopped
+    command: ["php", "artisan", "kafka:processar-pagamentos"]
+    environment: *laravel-proposta
+    # Worker, não servidor HTTP: o HEALTHCHECK herdado da imagem bate numa
+    # porta que este processo não abre, e viveria `unhealthy` à toa.
+    healthcheck:
+      disable: true
+    depends_on:
+      proposta-service:
+        condition: service_healthy
+
+  # Consumer group `proposta-service`: atualiza o aggregate com proposta.avaliada.
+  proposta-consumer:
+    image: editais/proposta-service
+    container_name: editais-proposta-consumer
+    restart: unless-stopped
+    command: ["php", "artisan", "kafka:consumir-avaliadas"]
+    environment: *laravel-proposta
+    # Worker, não servidor HTTP: o HEALTHCHECK herdado da imagem bate numa
+    # porta que este processo não abre, e viveria `unhealthy` à toa.
+    healthcheck:
+      disable: true
+    depends_on:
+      proposta-service:
+        condition: service_healthy
+
+  # ───────────────────────── BFF — PHP / Laravel ────────────────────────────
+
+  bff-gateway:
+    build: ./services/bff-gateway
+    image: editais/bff-gateway
+    container_name: editais-bff
+    restart: unless-stopped
+    environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
+      APP_KEY: ${APP_KEY_BFF}
+      LOG_CHANNEL: stderr
+      CACHE_STORE: file
+      SESSION_DRIVER: file
+      KEYCLOAK_ISSUER: http://idp.editais.local:8089/realms/editais
+      EDITAL_SERVICE_URL: http://edital-service:8001
+      PROPOSTA_SERVICE_URL: http://proposta-service:8002
+      AVALIACAO_SERVICE_URL: http://avaliacao-service:8003
+    ports:
+      - "${BFF_PORT:-8000}:8000"
+    depends_on:
+      edital-service:
+        condition: service_healthy
+      proposta-service:
+        condition: service_healthy
+
+  # ─────────────────────── Domínio — Python / FastAPI ───────────────────────
+
+  edital-service:
+    build: ./services/edital-service
+    image: editais/edital-service
+    container_name: editais-edital
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://edital:edital@postgres:5432/${POSTGRES_DB:-editais}
+      KAFKA_BOOTSTRAP: kafka:9092
+    ports:
+      - "${EDITAL_PORT:-8001}:8001"
+
+  avaliacao-service:
+    build: ./services/avaliacao-service
+    image: editais/avaliacao-service
+    container_name: editais-avaliacao
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://avaliacao:avaliacao@postgres:5432/${POSTGRES_DB:-editais}
+      KAFKA_BOOTSTRAP: kafka:9092
+    ports:
+      - "${AVALIACAO_PORT:-8003}:8003"
+
+  notification-service:
+    build: ./services/notification-service
+    image: editais/notification-service
+    container_name: editais-notification
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://notificacao:notificacao@postgres:5432/${POSTGRES_DB:-editais}
+      KAFKA_BOOTSTRAP: kafka:9092
+      SMTP_HOST: mailpit
+      SMTP_PORT: 1025
+    ports:
+      - "${NOTIFICATION_PORT:-8004}:8004"
+
+# A MESMA rede dos outros blocos, externa aos três projetos (a razão está
+# comentada em `docker-compose.base.yaml`). `make infra` a cria; `make up`
+# chama esse alvo antes de subir qualquer coisa.
+networks:
+  default:
+    name: editais
+    external: true
