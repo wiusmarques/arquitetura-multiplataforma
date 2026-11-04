@@ -1,0 +1,75 @@
+# Esteira da Plataforma de Editais — testa e põe em produção.
+#
+# Fluxo: push na main que toque em trabalho_final/editais/** →
+#   1. test   roda os mesmos testes unitários do hook de pre-push (make test)
+#   2. deploy entra por SSH no servidor, faz git pull e reconstrói/recria
+#      os containers (make build + make up; o compose só recria o que mudou)
+#
+# Segredos a cadastrar no GitHub (Settings → Secrets and variables → Actions):
+#   DEPLOY_HOST  IP ou hostname do servidor (ex.: 147.182.170.150)
+#   DEPLOY_USER  usuário SSH (ex.: root)
+#   DEPLOY_KEY   chave PRIVADA ed25519 dedicada a esta esteira; a pública
+#                vai no ~/.ssh/authorized_keys do servidor
+#
+# No servidor, o clone em /var/www/html/arquitetura-multiplataforma precisa
+# conseguir `git pull` sozinho (repositório público, ou deploy key própria).
+
+name: deploy-editais
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'trabalho_final/editais/**'
+      - '.github/workflows/deploy-editais.yml'
+  workflow_dispatch: {}   # botão "Run workflow" para reimplantar na mão
+
+# Um deploy por vez; um push novo cancela o que ainda estava na fila.
+concurrency:
+  group: deploy-editais
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: trabalho_final/editais
+    steps:
+      - uses: actions/checkout@v4
+
+      # php e python3 já vêm no runner ubuntu-latest — mesmos testes do
+      # hook de pre-push, sem subir container nenhum.
+      - name: Testes unitários (make test)
+        run: make test
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    environment: producao   # permite exigir aprovação manual, se quiser
+    steps:
+      - name: Preparar chave SSH
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_KEY }}" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          ssh-keyscan -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Atualizar código e reconstruir containers
+        run: |
+          ssh -i ~/.ssh/id_deploy "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" bash -s <<'EOF'
+          set -euo pipefail
+          cd /var/www/html/arquitetura-multiplataforma
+          git fetch origin main
+          git reset --hard origin/main   # produção espelha a main, sem merges locais
+          cd trabalho_final/editais
+          make build
+          make up
+          docker image prune -f          # limpa camadas órfãs dos rebuilds
+          EOF
+
+      - name: Smoke test (health check do BFF)
+        run: |
+          sleep 10
+          curl -fsS --max-time 15 https://bff.uaiotru.com.br/up
+          echo "BFF respondendo — deploy ok."
