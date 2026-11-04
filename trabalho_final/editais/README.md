@@ -115,6 +115,30 @@ O `.env.example` deste repositório é versionado **com credenciais preenchidas*
 
 O auto-create de tópicos está **desligado** no broker: partições e retenção são decisão de arquitetura, não efeito colateral do primeiro producer. `make topics-up` cria os quatro de forma idempotente.
 
+## Testes e hook de pre-push
+
+Dois conjuntos de testes unitários exemplificam o gate de qualidade local —
+um por plataforma, rodando em segundos, **sem container nenhum**:
+
+- `services/proposta-service/tests/PropostaTest.php` — invariantes do
+  Aggregate Root `Proposta` (avaliação e pagamento), em PHP puro. Usa um
+  mini-runner (`tests/run.php`) em vez de PHPUnit porque o `vendor/` só
+  existe dentro da imagem Docker.
+- `services/notification-service/tests/test_emails.py` — montagem dos
+  e-mails de notificação, com o `unittest` da stdlib do Python.
+
+```sh
+make test    # roda os dois conjuntos
+make hooks   # instala o pre-push (uma vez por clone)
+```
+
+O `make hooks` aponta o `core.hooksPath` do git para a pasta versionada
+`.githooks/`. A partir daí **todo `git push` roda `make test` antes de
+enviar** — teste quebrado, push recusado, em qualquer branch (inclusive a
+main/master). Para ver a recusa acontecendo, descomente o bloco indicado no
+final do `PropostaTest.php` e tente um push; comente de novo e o push volta
+a passar.
+
 ## Estrutura do monorepo
 
 ```
@@ -124,6 +148,8 @@ editais/
 ├── docker-compose.services.yaml  # bloco services: microsserviços, workers, BFF
 ├── docker-compose.viewers.yaml   # bloco viewers: app web, Kafka UI, Mailpit
 ├── .env.example          # modelo do .env (ver seção acima)
+├── .githooks/
+│   └── pre-push          # gate local: roda `make test` antes de todo push
 ├── docker/
 │   ├── up-env.sh         # garante o .env antes do up
 │   └── postgres/

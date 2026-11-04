@@ -39,7 +39,7 @@ HOSTS_APP   = app.editais.local gestao.editais.local bff.editais.local \
 HOSTS_INFRA = idp.editais.local mail.editais.local kafka.editais.local \
               grafana.editais.local
 
-.PHONY: help env-up infra build up down restart ps logs topics-up psql hosts kc-reset reset
+.PHONY: help env-up infra build up down restart ps logs topics-up psql hosts kc-reset reset test hooks
 
 help: ## Lista os alvos disponíveis
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -108,6 +108,21 @@ topics-up: ## Cria os tópicos Kafka do domínio (idempotente)
 
 psql: ## Abre um psql no Postgres (superusuário do laboratório)
 	docker exec -it editais-postgres psql -U editais -d editais
+
+# Testes unitários rápidos, SEM containers: domínio de propostas (PHP puro,
+# mini-runner porque o vendor/ só existe na imagem) e montagem de e-mails
+# (Python, unittest da stdlib). São exatamente os testes que o hook de
+# pre-push executa — se isto falhar, o push é recusado.
+test: ## Roda os testes unitários (o hook de pre-push chama este alvo)
+	php services/proposta-service/tests/run.php
+	python3 -m unittest discover -s services/notification-service/tests -v
+
+# core.hooksPath aponta o git para a pasta versionada .githooks/ — o hook
+# entra no clone de qualquer membro do grupo com um comando, em vez de cada
+# um copiar arquivo para .git/hooks (que não é versionado).
+hooks: ## Instala o hook de pre-push (recusa push com teste quebrado)
+	git config core.hooksPath "$$(cd .githooks && pwd)"
+	@echo "pre-push instalado: todo push roda 'make test' antes de sair."
 
 hosts: ## Mostra as linhas a acrescentar no arquivo hosts da máquina
 	@echo "127.0.0.1 $(HOSTS_APP)"

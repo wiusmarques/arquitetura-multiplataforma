@@ -1,0 +1,14 @@
+#!/bin/sh
+# Hook de pre-push — instalado por `make hooks` (git config core.hooksPath).
+#
+# O git executa este script ANTES de enviar qualquer ref ao remoto; se ele
+# sair com código diferente de zero, o push é recusado ali mesmo. É o gate
+# local de qualidade: código com teste quebrado não sai da máquina — nem
+# para a main/master, nem para branch nenhuma.
+#
+# Para ver a recusa acontecendo, descomente o bloco indicado em
+# services/proposta-service/tests/PropostaTest.php e tente um push.
+
+cd "$(dirname "$0")/.." || exit 1
+echo "pre-push: rodando os testes (make test) antes de enviar..."
+exec make test
