@@ -30,8 +30,10 @@ services:
       # URLs visíveis do NAVEGADOR, não da rede interna. O BFF vai por
       # localhost (não exige hosts); o Keycloak precisa do hostname para o
       # issuer do JWT bater entre navegador e serviços.
-      BFF_PUBLIC_URL: http://localhost:${BFF_PORT:-8000}
-      KEYCLOAK_PUBLIC_URL: http://idp.editais.local:${KEYCLOAK_PORT:-8089}
+      # Em produção, definir os dois no .env (https://bff/idp.uaiotru.com.br);
+      # porta não-padrão no lab exige ajustar aqui também.
+      BFF_PUBLIC_URL: ${BFF_PUBLIC_URL:-http://localhost:8000}
+      KEYCLOAK_PUBLIC_URL: ${KEYCLOAK_PUBLIC_URL:-http://idp.editais.local:8089}
     ports:
       - "${APP_WEB_PORT:-5173}:80"
 

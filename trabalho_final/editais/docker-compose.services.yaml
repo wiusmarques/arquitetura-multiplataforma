@@ -110,7 +110,7 @@ services:
       LOG_CHANNEL: stderr
       CACHE_STORE: file
       SESSION_DRIVER: file
-      KEYCLOAK_ISSUER: http://idp.editais.local:8089/realms/editais
+      KEYCLOAK_ISSUER: ${KEYCLOAK_ISSUER:-http://idp.editais.local:8089/realms/editais}
       EDITAL_SERVICE_URL: http://edital-service:8001
       PROPOSTA_SERVICE_URL: http://proposta-service:8002
       AVALIACAO_SERVICE_URL: http://avaliacao-service:8003
