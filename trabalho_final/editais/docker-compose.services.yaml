@@ -32,6 +32,10 @@ services:
     container_name: editais-proposta
     restart: unless-stopped
     environment: &laravel-proposta
+      # Servidor embutido do PHP com workers extras — ver o comentário no
+      # gestao-interna (docker-compose.base.yaml); nos workers Kafka que
+      # reaproveitam esta âncora a variável é inócua.
+      PHP_CLI_SERVER_WORKERS: "4"
       APP_ENV: production
       APP_DEBUG: "false"
       APP_KEY: ${APP_KEY_PROPOSTA}
@@ -104,6 +108,9 @@ services:
     container_name: editais-bff
     restart: unless-stopped
     environment:
+      # Workers extras no servidor embutido — ver comentário no gestao-interna.
+      # O BFF é a porta de entrada da SPA: 1 worker enfileiraria os usuários.
+      PHP_CLI_SERVER_WORKERS: "4"
       APP_ENV: production
       APP_DEBUG: "false"
       APP_KEY: ${APP_KEY_BFF}

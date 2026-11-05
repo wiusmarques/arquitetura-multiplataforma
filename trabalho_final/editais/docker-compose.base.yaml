@@ -131,6 +131,13 @@ services:
     container_name: editais-gestao
     restart: unless-stopped
     environment: &laravel-gestao
+      # O `artisan serve` usa o servidor embutido do PHP, que por padrão
+      # atende UMA requisição por vez. A ressolicitação de pagamento cria o
+      # ciclo painel → proposta-service → stub de pagamento (de volta aqui):
+      # com 1 worker o retorno fica preso atrás da requisição original e
+      # estoura o timeout do chamador ("gateway indisponível", visto em
+      # produção). Workers extras quebram o ciclo e dão folga a concorrência.
+      PHP_CLI_SERVER_WORKERS: "4"
       APP_ENV: production
       APP_DEBUG: "false"
       APP_KEY: ${APP_KEY_GESTAO}
