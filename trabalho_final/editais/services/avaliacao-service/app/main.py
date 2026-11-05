@@ -78,8 +78,11 @@ async def consumir(pool: asyncpg.Pool) -> None:
                     ON CONFLICT (proposta_id) DO NOTHING
                     """,
                     str(uuid.uuid4()), ev["proposta_id"], ev["edital_id"],
-                    ev.get("proponente", ""), ev.get("titulo", ""),
-                    ev.get("descricao", ""), ev.get("retorno_esperado", ""),
+                    # `or ""`: campo presente com null também vira vazio — o
+                    # default do .get só cobre chave ausente, e null violaria
+                    # o NOT NULL (evento perdido com offset comitado).
+                    ev.get("proponente") or "", ev.get("titulo") or "",
+                    ev.get("descricao") or "", ev.get("retorno_esperado") or "",
                 )
                 log.info("tarefa criada para proposta %s", ev["proposta_id"])
             except Exception:

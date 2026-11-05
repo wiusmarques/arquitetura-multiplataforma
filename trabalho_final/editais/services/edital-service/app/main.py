@@ -116,7 +116,11 @@ async def aplicar_evento(pool: asyncpg.Pool, topico: str, evento: dict) -> None:
                                   THEN editais.status ELSE 'publicado' END,
                     atualizado_em = now()
                 """,
-                evento["edital_id"], evento["titulo"], evento.get("descricao", ""),
+                # `or ""`: o payload traz "descricao": null quando o admin não
+                # preenche — o default do .get só cobre chave AUSENTE, e null
+                # violaria o NOT NULL da coluna (evento ia para o log e era
+                # perdido, offset comitado).
+                evento["edital_id"], evento["titulo"], evento.get("descricao") or "",
                 evento["valor_total"], evento.get("valor_por_candidato"),
                 evento.get("numero_candidatos"), evento.get("nota_maxima"),
                 _data(evento.get("data_abertura")), _data(evento.get("data_encerramento")),
