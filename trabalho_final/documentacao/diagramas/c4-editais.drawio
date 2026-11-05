@@ -1,6 +1,6 @@
 <mxfile host="65bd71144e" pages="2">
     <diagram id="c4-context-editais" name="C4 — Contexto">
-        <mxGraphModel dx="2319" dy="972" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" background="#FFFFFF" math="0" shadow="0">
+        <mxGraphModel grid="0" page="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" pageScale="1" pageWidth="1654" pageHeight="1169" background="#FFFFFF" math="0" shadow="0">
             <root>
                 <mxCell id="0"/>
                 <mxCell id="1" parent="0"/>
@@ -10,35 +10,29 @@
                 <mxCell id="t2" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;fontSize=14;fontStyle=2;fontColor=#374151;" value="C4 Nível 1 — o que o sistema faz e quem o usa (sem tecnologia)" vertex="1">
                     <mxGeometry height="28" width="1000" x="327" y="82" as="geometry"/>
                 </mxCell>
-                <mxCell id="p_adm" parent="1" style="shape=mxgraph.c4.person2;whiteSpace=wrap;html=1;fillColor=#D4E3F5;fontColor=#052E56;strokeColor=#08427B;strokeWidth=2;fontSize=13;align=center;verticalAlign=middle;spacingTop=40;spacing=10;" value="&lt;b style=&quot;font-size:16px&quot;&gt;Administrador&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:12px&quot;&gt;[Person]&lt;/font&gt;" vertex="1">
-                    <mxGeometry height="220" width="210" x="90" y="130" as="geometry"/>
-                </mxCell>
                 <mxCell id="p_aval" parent="1" style="shape=mxgraph.c4.person2;whiteSpace=wrap;html=1;fillColor=#D4E3F5;fontColor=#052E56;strokeColor=#08427B;strokeWidth=2;fontSize=13;align=center;verticalAlign=middle;spacingTop=40;spacing=10;" value="&lt;b style=&quot;font-size:16px&quot;&gt;Avaliador&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:12px&quot;&gt;[Person]&lt;/font&gt;" vertex="1">
-                    <mxGeometry height="220" width="210" x="480" y="130" as="geometry"/>
+                    <mxGeometry height="220" width="210" x="425" y="146" as="geometry"/>
                 </mxCell>
                 <mxCell id="p_prop" parent="1" style="shape=mxgraph.c4.person2;whiteSpace=wrap;html=1;fillColor=#D4E3F5;fontColor=#052E56;strokeColor=#08427B;strokeWidth=2;fontSize=13;align=center;verticalAlign=middle;spacingTop=40;spacing=10;" value="&lt;b style=&quot;font-size:16px&quot;&gt;Proponente (PF/PJ)&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:12px&quot;&gt;[Person]&lt;/font&gt;" vertex="1">
-                    <mxGeometry height="220" width="210" x="870" y="130" as="geometry"/>
+                    <mxGeometry height="220" width="210" x="924" y="143" as="geometry"/>
                 </mxCell>
                 <mxCell id="p_cid" parent="1" style="shape=mxgraph.c4.person2;whiteSpace=wrap;html=1;fillColor=#D4E3F5;fontColor=#052E56;strokeColor=#08427B;strokeWidth=2;fontSize=13;align=center;verticalAlign=middle;spacingTop=40;spacing=10;" value="&lt;b style=&quot;font-size:16px&quot;&gt;Cidadão&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:12px&quot;&gt;[Person]&lt;/font&gt;" vertex="1">
-                    <mxGeometry height="220" width="210" x="1162" y="30" as="geometry"/>
+                    <mxGeometry height="220" width="210" x="1234" y="26" as="geometry"/>
                 </mxCell>
                 <mxCell id="sys" parent="1" style="shape=mxgraph.c4.system;whiteSpace=wrap;html=1;fillColor=#C9DCF4;fontColor=#052E56;strokeColor=#0B4884;strokeWidth=2;fontSize=13;align=center;" value="&lt;b style=&quot;font-size:14px&quot;&gt;Plataforma de Editais Federais&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:12px&quot;&gt;[Software System]&lt;/font&gt;&lt;br&gt;&lt;br&gt;&lt;font style=&quot;font-size:12px&quot;&gt;Gerencia o ciclo de vida de editais federais: publicação, submissão de propostas, avaliação, resultado e notificações. Expõe API pública de transparência (distribuição de recursos e prestação de contas). Dimensionada para picos de 5.000 acessos/min no encerramento de editais.&lt;/font&gt;" vertex="1">
                     <mxGeometry height="200" width="460" x="560" y="450" as="geometry"/>
                 </mxCell>
                 <mxCell id="e_idp" parent="1" style="shape=mxgraph.c4.system;whiteSpace=wrap;html=1;fillColor=#E5E7EB;fontColor=#1F2937;strokeColor=#6B7280;strokeWidth=2;fontSize=13;align=center;" value="&lt;b style=&quot;font-size:15px&quot;&gt;Keycloak (simular govbr)&lt;/b&gt;&lt;div&gt;&lt;font style=&quot;font-size:12px&quot;&gt;[External System]&lt;/font&gt;&lt;br&gt;&lt;br&gt;&lt;font style=&quot;font-size:12px&quot;&gt;Identity Provider. Autentica usuários e emite tokens JWT com roles (OAuth2/OIDC).&lt;/font&gt;&lt;/div&gt;" vertex="1">
-                    <mxGeometry height="150" width="280" x="60" y="810" as="geometry"/>
+                    <mxGeometry height="150" width="280" x="160" y="726" as="geometry"/>
                 </mxCell>
                 <mxCell id="e_mail" parent="1" style="shape=mxgraph.c4.system;whiteSpace=wrap;html=1;fillColor=#E5E7EB;fontColor=#1F2937;strokeColor=#6B7280;strokeWidth=2;fontSize=13;align=center;" value="&lt;b style=&quot;font-size:15px&quot;&gt;Servidor de E-mail&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:12px&quot;&gt;[External System]&lt;/font&gt;&lt;br&gt;&lt;br&gt;&lt;font style=&quot;font-size:12px&quot;&gt;Notificações de edital, proposta e resultado (Mailpit no laboratório).&lt;/font&gt;" vertex="1">
-                    <mxGeometry height="150" width="280" x="450" y="810" as="geometry"/>
+                    <mxGeometry height="150" width="280" x="511" y="904" as="geometry"/>
                 </mxCell>
                 <mxCell id="e_rfb" parent="1" style="shape=mxgraph.c4.system;whiteSpace=wrap;html=1;fillColor=#E5E7EB;fontColor=#1F2937;strokeColor=#6B7280;strokeWidth=2;fontSize=13;align=center;" value="&lt;b style=&quot;font-size:15px&quot;&gt;API CPF/CNPJ (Receita)&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:12px&quot;&gt;[External System]&lt;/font&gt;&lt;br&gt;&lt;br&gt;&lt;font style=&quot;font-size:12px&quot;&gt;Valida dados cadastrais de PF/PJ. Integração simulada (stub) no laboratório.&lt;/font&gt;" vertex="1">
-                    <mxGeometry height="150" width="280" x="840" y="810" as="geometry"/>
+                    <mxGeometry height="150" width="280" x="834" y="765" as="geometry"/>
                 </mxCell>
                 <mxCell id="e_transp" parent="1" style="shape=mxgraph.c4.system;whiteSpace=wrap;html=1;fillColor=#E5E7EB;fontColor=#1F2937;strokeColor=#6B7280;strokeWidth=2;fontSize=13;align=center;" value="&lt;b style=&quot;font-size:15px&quot;&gt;Órgãos de Controle e Dados Abertos&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:12px&quot;&gt;[External System]&lt;/font&gt;&lt;br&gt;&lt;br&gt;&lt;font style=&quot;font-size:12px&quot;&gt;Sistemas externos que consomem a API pública de transparência: distribuição de recursos e prestação de contas. Somente leitura, consistência eventual.&lt;/font&gt;" vertex="1">
                     <mxGeometry height="150" width="300" x="1230" y="810" as="geometry"/>
-                </mxCell>
-                <mxCell id="ce1" edge="1" parent="1" source="p_adm" style="edgeStyle=orthogonalEdgeStyle;html=1;rounded=1;fontColor=#1F2937;strokeColor=#4B5563;strokeWidth=1.5;jettySize=auto;orthogonalLoop=1;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;entryX=0;entryY=0.35;" target="sys" value="&lt;font style=&quot;font-size:12px&quot;&gt;&lt;b&gt;HTTPS&lt;/b&gt;&lt;/font&gt;">
-                    <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
                 <mxCell id="ce2" edge="1" parent="1" source="p_aval" style="edgeStyle=orthogonalEdgeStyle;html=1;rounded=1;fontColor=#1F2937;strokeColor=#4B5563;strokeWidth=1.5;jettySize=auto;orthogonalLoop=1;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;entryX=0.3;entryY=0;" target="sys" value="&lt;font style=&quot;font-size:12px&quot;&gt;&lt;b&gt;HTTPS&lt;/b&gt;&lt;/font&gt;">
                     <mxGeometry relative="1" as="geometry"/>
@@ -70,13 +64,22 @@
                     </mxGeometry>
                 </mxCell>
                 <mxCell id="f8KcU_vmW6YzZNoGrcBj-1" parent="1" style="shape=mxgraph.c4.person2;whiteSpace=wrap;html=1;fillColor=#D4E3F5;fontColor=#052E56;strokeColor=#08427B;strokeWidth=2;fontSize=13;align=center;verticalAlign=middle;spacingTop=40;spacing=10;" value="&lt;span style=&quot;font-size: 16px;&quot;&gt;&lt;b&gt;Sistemas&amp;nbsp;&lt;span style=&quot;white-space: pre;&quot;&gt;&#x9;&lt;/span&gt;Externos&lt;/b&gt;&lt;/span&gt;&lt;br&gt;&lt;font style=&quot;font-size:12px&quot;&gt;[Person]&lt;/font&gt;" vertex="1">
-                    <mxGeometry height="220" width="210" x="1410" y="440" as="geometry"/>
+                    <mxGeometry height="220" width="210" x="1411" y="440" as="geometry"/>
+                </mxCell>
+                <mxCell id="6vS7-V0Az4_QzrRYjEXD-2" connectable="0" parent="1" style="group" value="" vertex="1">
+                    <mxGeometry height="220" width="210" x="189" y="34" as="geometry"/>
+                </mxCell>
+                <mxCell id="p_adm" parent="6vS7-V0Az4_QzrRYjEXD-2" style="shape=mxgraph.c4.person2;whiteSpace=wrap;html=1;fillColor=#D4E3F5;fontColor=#052E56;strokeColor=#08427B;strokeWidth=2;fontSize=13;align=center;verticalAlign=middle;spacingTop=40;spacing=10;container=1;" value="&lt;b style=&quot;font-size:16px&quot;&gt;Administrador&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:12px&quot;&gt;[Person]&lt;/font&gt;" vertex="1">
+                    <mxGeometry height="220" width="210" as="geometry"/>
+                </mxCell>
+                <mxCell id="ce1" edge="1" parent="6vS7-V0Az4_QzrRYjEXD-2" source="p_adm" style="edgeStyle=orthogonalEdgeStyle;html=1;rounded=1;fontColor=#1F2937;strokeColor=#4B5563;strokeWidth=1.5;jettySize=auto;orthogonalLoop=1;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;entryX=0;entryY=0.35;" target="sys" value="&lt;font style=&quot;font-size:12px&quot;&gt;&lt;b&gt;HTTPS&lt;/b&gt;&lt;/font&gt;">
+                    <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
             </root>
         </mxGraphModel>
     </diagram>
     <diagram id="c4-container-editais" name="C4 — Container">
-        <mxGraphModel dx="6134" dy="1591" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2339" pageHeight="1654" background="#FFFFFF" math="0" shadow="0">
+        <mxGraphModel dx="4304" dy="888" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2339" pageHeight="1654" background="#FFFFFF" math="0" shadow="0">
             <root>
                 <mxCell id="0"/>
                 <mxCell id="1" parent="0"/>
@@ -114,7 +117,7 @@
                     <mxGeometry height="170" width="320" x="820" y="820" as="geometry"/>
                 </mxCell>
                 <mxCell id="edital" parent="1" style="shape=mxgraph.c4.container;whiteSpace=wrap;html=1;fillColor=#D9E8F8;fontColor=#163A5F;strokeColor=#2E6295;strokeWidth=2;fontSize=13;align=center;" value="&lt;b style=&quot;font-size:15px&quot;&gt;edital-service&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:12px&quot;&gt;[Python 3.12 / FastAPI — :8001]&lt;/font&gt;&lt;br&gt;&lt;br&gt;&lt;font style=&quot;font-size:12px&quot;&gt;Query side dos editais (CQRS): leitura pública de alto volume. Read model populado pelos eventos do monolito.&lt;/font&gt;" vertex="1">
-                    <mxGeometry height="160" width="300" x="820" y="420" as="geometry"/>
+                    <mxGeometry height="160" width="300" x="830" y="504" as="geometry"/>
                 </mxCell>
                 <mxCell id="prop" parent="1" style="shape=mxgraph.c4.container;whiteSpace=wrap;html=1;fillColor=#E8DAF5;fontColor=#3B1D59;strokeColor=#5A2A84;strokeWidth=2;fontSize=13;align=center;" value="&lt;b style=&quot;font-size:15px&quot;&gt;proposta-service&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:12px&quot;&gt;[PHP 8.3 / Laravel — :8002]&lt;/font&gt;&lt;br&gt;&lt;br&gt;&lt;font style=&quot;font-size:12px&quot;&gt;Núcleo do domínio: submissão e ciclo de vida da proposta. Clean Architecture + DDD (Proposta = Aggregate Root). Outbox Pattern.&lt;/font&gt;" vertex="1">
                     <mxGeometry height="170" width="320" x="1284" y="920" as="geometry"/>
