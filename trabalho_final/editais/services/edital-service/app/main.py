@@ -211,6 +211,11 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="edital-service", description=__doc__, lifespan=lifespan)
 
+# Observabilidade (no-op sem OTEL_EXPORTER_OTLP_ENDPOINT no ambiente).
+from app.telemetry import setup_telemetry  # noqa: E402
+
+setup_telemetry(app, "edital-service")
+
 
 @app.get("/health")
 async def health():

@@ -4,26 +4,29 @@
 # depende de `env-up`, que garante o `.env` a partir do modelo (`.env.example`).
 # O compose lê o `.env` sozinho para interpolar credenciais e portas.
 
-# O stack são TRÊS projetos compose independentes (ver o cabeçalho de cada
+# O stack são QUATRO projetos compose independentes (ver o cabeçalho de cada
 # arquivo), separados pelo papel de cada camada:
 #
-#   editais-base      banco, Kafka, IdP e o monolito `gestao-interna`
-#   editais-services  microsserviços, workers e BFF — o que escala
-#   editais-viewers   app web, Kafka UI e Mailpit — o que se olha
+#   editais-base           banco, Kafka, IdP e o monolito `gestao-interna`
+#   editais-observability  OTel Collector, Prometheus, Tempo, Loki e Grafana
+#   editais-services       microsserviços, workers e BFF — o que escala
+#   editais-viewers        app web, Kafka UI e Mailpit — o que se olha
 #
 # Projetos separados de propósito: `docker compose ls` e o Docker Desktop
-# mostram três grupos, e cada bloco sobe, desce e escala por conta própria.
+# mostram os grupos, e cada bloco sobe, desce e escala por conta própria.
 #
 # O que os une é a rede externa `$(REDE)`, criada pelo alvo `infra`. Daqui os
 # alvos continuam sendo UM comando só para o stack inteiro: cada um age nos
-# três blocos, na ordem certa (serviços e viewers dependem do banco e do
-# broker, que estão no base — por isso o `up` espera o base com `--wait`).
+# blocos, na ordem certa (serviços e viewers dependem do banco e do broker,
+# que estão no base — por isso o `up` espera o base com `--wait`; a
+# observabilidade sobe antes dos serviços para o Collector já estar de pé).
 COMPOSE   ?= docker compose
 BASE       = $(COMPOSE) -f docker-compose.base.yaml
+OBS        = $(COMPOSE) -f docker-compose.observability.yaml
 SERVICES   = $(COMPOSE) -f docker-compose.services.yaml
 VIEWERS    = $(COMPOSE) -f docker-compose.viewers.yaml
 # Ordem de subida; a de descida é esta invertida.
-BLOCOS     = docker-compose.base.yaml docker-compose.services.yaml docker-compose.viewers.yaml
+BLOCOS     = docker-compose.base.yaml docker-compose.observability.yaml docker-compose.services.yaml docker-compose.viewers.yaml
 REDE       = editais
 VOLUMES    = editais_pg_data editais_kafka_data
 
@@ -72,18 +75,21 @@ build: env-up ## (Re)constrói as imagens dos serviços da aplicação [S=<servi
 
 # `--wait` no base: banco, Kafka e IdP saudáveis antes de os outros blocos
 # subirem — é o que o `depends_on` fazia quando tudo era um projeto só.
-up: env-up infra ## Sobe os três blocos (base, depois services e viewers)
+up: env-up infra ## Sobe os quatro blocos (base, observability, services, viewers)
 	$(BASE) up -d --wait
+	$(OBS) up -d
 	$(SERVICES) up -d
 	$(VIEWERS) up -d
 
-down: ## Derruba os três blocos (volumes e rede preservados)
+down: ## Derruba os quatro blocos (volumes e rede preservados)
 	$(VIEWERS) down
 	$(SERVICES) down
+	$(OBS) down
 	$(BASE) down
 
 restart: env-up infra ## Recria os containers, relendo o `.env`
 	$(BASE) up -d --force-recreate --wait
+	$(OBS) up -d --force-recreate
 	$(SERVICES) up -d --force-recreate
 	$(VIEWERS) up -d --force-recreate
 
@@ -141,9 +147,10 @@ kc-reset: env-up infra ## Recria o banco do Keycloak e reimporta o realm `editai
 
 # Os volumes e a rede são externos, então o `down -v` não os leva junto:
 # apagar o estado do laboratório é decisão explícita deste alvo.
-reset: ## Derruba tudo e APAGA os volumes (banco, Kafka, Keycloak) e a rede
+reset: ## Derruba tudo e APAGA os volumes (banco, Kafka, Keycloak, telemetria) e a rede
 	$(VIEWERS) down
 	$(SERVICES) down
+	$(OBS) down -v
 	$(BASE) down
 	-@docker volume rm $(VOLUMES) 2>/dev/null || true
 	-@docker network rm $(REDE) 2>/dev/null || true

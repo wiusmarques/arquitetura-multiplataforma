@@ -1,0 +1,34 @@
+# Prometheus do laboratório — métricas das aplicações chegam pelo OTel
+# Collector (porta 8889); os demais jobs raspam a própria infraestrutura.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: editais
+    env: lab
+
+scrape_configs:
+
+  # Prometheus em si
+  - job_name: prometheus
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Métricas das aplicações (via OTel Collector, namespace app_*)
+  - job_name: otel-collector
+    static_configs:
+      - targets: ['otel-collector:8889']
+
+  # Métricas internas do Loki e do Tempo
+  - job_name: loki
+    static_configs:
+      - targets: ['loki:3100']
+  - job_name: tempo
+    static_configs:
+      - targets: ['tempo:3200']
+
+  # Keycloak expõe métricas na porta de management (requer KC_METRICS_ENABLED)
+  - job_name: keycloak
+    static_configs:
+      - targets: ['keycloak:9000']
+    metrics_path: /metrics

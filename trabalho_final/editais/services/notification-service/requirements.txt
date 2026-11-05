@@ -2,3 +2,9 @@ fastapi==0.115.6
 uvicorn==0.32.1
 asyncpg==0.29.0
 aiokafka==0.11.0
+# OpenTelemetry (aula 4): três pilares via OTLP -> Collector
+opentelemetry-exporter-otlp-proto-http>=1.27.0
+opentelemetry-instrumentation-fastapi>=0.66b0
+opentelemetry-instrumentation-logging>=0.66b0
+opentelemetry-instrumentation-asyncpg>=0.66b0
+opentelemetry-instrumentation-aiokafka>=0.66b0

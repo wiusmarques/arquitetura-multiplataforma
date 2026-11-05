@@ -139,6 +139,9 @@ services:
     environment:
       DATABASE_URL: postgresql://edital:edital@postgres:5432/${POSTGRES_DB:-editais}
       KAFKA_BOOTSTRAP: kafka:9092
+      # Com o endpoint no ambiente, o app/telemetry.py liga o OpenTelemetry.
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_RESOURCE_ATTRIBUTES: service.namespace=editais
     ports:
       - "${EDITAL_PORT:-8001}:8001"
 
@@ -150,6 +153,8 @@ services:
     environment:
       DATABASE_URL: postgresql://avaliacao:avaliacao@postgres:5432/${POSTGRES_DB:-editais}
       KAFKA_BOOTSTRAP: kafka:9092
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_RESOURCE_ATTRIBUTES: service.namespace=editais
     ports:
       - "${AVALIACAO_PORT:-8003}:8003"
 
@@ -163,6 +168,8 @@ services:
       KAFKA_BOOTSTRAP: kafka:9092
       SMTP_HOST: mailpit
       SMTP_PORT: 1025
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_RESOURCE_ATTRIBUTES: service.namespace=editais
     ports:
       - "${NOTIFICATION_PORT:-8004}:8004"
 

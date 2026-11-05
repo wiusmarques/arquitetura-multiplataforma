@@ -12,13 +12,19 @@ Cada serviço tem hostname e porta próprios (ver [Configurar os hosts](#configu
 
 | Serviço | Plataforma | URL |
 |---|---|---|
-| app-web (SPA) | JavaScript | http://app.editais.local:5173 |
+| app-web (SPA) | JavaScript | **http://localhost:5173** (login) · http://app.editais.local:5173 |
 | bff-gateway | PHP 8.3 / Laravel | http://bff.editais.local:8000 |
 | edital-service (query side) | Python 3.12 / FastAPI | http://edital.editais.local:8001 |
 | proposta-service | PHP 8.3 / Laravel | http://proposta.editais.local:8002 |
 | avaliacao-service | Python 3.12 / FastAPI | http://avaliacao.editais.local:8003 |
 | notification-service | Python 3.12 / FastAPI | http://notificacao.editais.local:8004 |
 | gestao-interna (monolito) | PHP 8.3 / Laravel | http://gestao.editais.local:8080 |
+
+> **Login do app-web: use `http://localhost:5173`.** O keycloak-js gera o
+> PKCE com a Web Crypto API, que o navegador só libera em **contexto seguro**
+> (https ou localhost) — em `http://app.editais.local` o login falha com
+> "Web Crypto API is not available". Por isso o realm registra as duas
+> redirect URIs. Em produção (https) o problema não existe.
 
 ### Infraestrutura
 
@@ -29,8 +35,8 @@ Cada serviço tem hostname e porta próprios (ver [Configurar os hosts](#configu
 | Kafka UI | Inspeção de tópicos e mensagens | http://kafka.editais.local:8090 |
 | Kafka (broker) | Eventos de domínio | `kafka:9092` (containers) · `localhost:29092` (host) |
 | PostgreSQL 16 | Um schema por serviço | `postgres:5432` (containers) · `localhost:5432` (host) |
-| Grafana | Observabilidade | http://grafana.editais.local:3333 *(porta reservada)* |
-| Prometheus | Métricas | `localhost:9090` *(porta reservada)* |
+| Grafana | Observabilidade (dashboards dos 3 pilares) | http://grafana.editais.local:3000 (anônimo, admin) |
+| Prometheus | Métricas | http://localhost:9090 |
 
 > O Keycloak escuta na **mesma porta (8089) dentro e fora** do compose, e o container tem o alias de rede `idp.editais.local`. Assim a URL do issuer dos JWTs é idêntica para o navegador e para os serviços — sem divergência entre quem emite e quem valida o token.
 
@@ -114,6 +120,29 @@ O `.env.example` deste repositório é versionado **com credenciais preenchidas*
 | `resultado.publicado` | gestao-interna (Outbox) | edital-service, notification-service |
 
 O auto-create de tópicos está **desligado** no broker: partições e retenção são decisão de arquitetura, não efeito colateral do primeiro producer. `make topics-up` cria os quatro de forma idempotente.
+
+## Observabilidade
+
+Os três pilares da aula 4, no bloco `editais-observability`
+(`docker-compose.observability.yaml`), com o **OTel Collector** como funil —
+as aplicações só conhecem um endereço e ele roteia:
+
+```
+serviços Python ──OTLP──▶ otel-collector ──▶ Tempo (traces) · Prometheus (métricas) · Loki (logs)
+                                                └──────────────── Grafana ────────────────┘
+```
+
+- Os serviços FastAPI se instrumentam sozinhos (`app/telemetry.py`): um span
+  por request HTTP, por query (asyncpg) e por mensagem Kafka — a
+  instrumentação do aiokafka propaga o trace **pelos headers da mensagem**,
+  então um `POST .../parecer` no avaliacao-service e os consumers do
+  notification/edital aparecem **no mesmo trace**, atravessando o broker.
+- Logs chegam ao Loki com `traceId` — no Grafana, o log tem link "Abrir
+  trace" e o trace tem link para os logs daquele request.
+- A instrumentação é opt-in por ambiente: sem `OTEL_EXPORTER_OTLP_ENDPOINT`
+  definido, o serviço roda exatamente como antes (o bloco pode nem subir).
+- Dashboards provisionados como código em `docker/observability/grafana/`
+  (latência P90/P95/P99, disponibilidade e traces).
 
 ## Testes e hook de pre-push
 
