@@ -29,7 +29,7 @@ def setup_telemetry(app, service_name: str) -> None:
     from opentelemetry.instrumentation.asyncpg import AsyncPGInstrumentor
     from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
     from opentelemetry.instrumentation.logging import LoggingInstrumentor
-    from opentelemetry.sdk._logs import LoggerProvider
+    from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
     from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
     from opentelemetry.sdk.metrics import MeterProvider
     from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
@@ -62,9 +62,23 @@ def setup_telemetry(app, service_name: str) -> None:
     set_logger_provider(logger_provider)
     LoggingInstrumentor().instrument(set_logging_format=True, log_code_attributes=True)
 
+    # O log de acesso do uvicorn nunca chegava ao Loki: o exportador OTel
+    # (LoggingHandler) fica no root logger, mas o registro de acesso sobe de
+    # uvicorn.access até o pai "uvicorn" (propagate=False) e morre lá antes
+    # do root. Pendura o handler OTel direto no uvicorn.access — o console
+    # continua saindo uma vez só, via handler do "uvicorn". O filtro tira
+    # /health, senão o healthcheck do Docker vira ruído contínuo no Loki.
+    access = logging.getLogger("uvicorn.access")
+    access.handlers.clear()
+    access.propagate = True
+    access.addFilter(lambda record: "/health" not in record.getMessage())
+    access.addHandler(LoggingHandler(logger_provider=logger_provider))
+
     # Auto-instrumentação: um span por request HTTP, por query e por
     # mensagem Kafka (produzida ou consumida), com contexto propagado.
-    FastAPIInstrumentor.instrument_app(app)
+    # /health fica de fora: o healthcheck do Docker bate nela a cada 10s
+    # e afogaria o Tempo em traces sem valor.
+    FastAPIInstrumentor.instrument_app(app, excluded_urls="/health$")
     AsyncPGInstrumentor().instrument()
     AIOKafkaInstrumentor().instrument()
 
