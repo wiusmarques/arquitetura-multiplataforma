@@ -28,4 +28,6 @@ USER app
 EXPOSE 8080
 HEALTHCHECK --interval=15s --timeout=5s --retries=5 --start-period=30s \
     CMD wget -q --spider http://127.0.0.1:8080/up || exit 1
-CMD ["sh", "-c", "php artisan migrate --force && php artisan serve --host=0.0.0.0 --port=8080"]
+# Sem --no-reload o serve DESCARTA o PHP_CLI_SERVER_WORKERS (reload de .env é
+# incompatível com workers) e volta a atender uma requisição por vez.
+CMD ["sh", "-c", "php artisan migrate --force && php artisan serve --host=0.0.0.0 --port=8080 --no-reload"]

@@ -20,4 +20,6 @@ USER app
 EXPOSE 8000
 HEALTHCHECK --interval=15s --timeout=5s --retries=5 --start-period=30s \
     CMD wget -q --spider http://127.0.0.1:8000/up || exit 1
-CMD ["php", "artisan", "serve", "--host=0.0.0.0", "--port=8000"]
+# Sem --no-reload o serve DESCARTA o PHP_CLI_SERVER_WORKERS (reload de .env é
+# incompatível com workers) e volta a atender uma requisição por vez.
+CMD ["php", "artisan", "serve", "--host=0.0.0.0", "--port=8000", "--no-reload"]
